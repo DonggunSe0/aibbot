@@ -6,6 +6,8 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Pretendard', 'sans-serif'],
       colors: {
         'main-pink': '#FFCCE1',
         'main-yellow': '#FFF5D7',
@@ -13,4 +15,5 @@ export default {
     },
   },
   plugins: [],
+  }
 }
