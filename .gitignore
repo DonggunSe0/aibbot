@@ -1,0 +1,34 @@
+<<<<<<< HEAD
+chatbot-api/.env
+.env
+=======
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+.venv/
+env/
+ENV/
+
+# Environment variables
+.env
+backend/.env 
+# frontend/.env  <-- 프론트엔드에도 .env 파일이 있다면 추가
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDE specific files
+.idea/
+.vscode/
+
+# Node.js (frontend 폴더 내 node_modules는 frontend/.gitignore에서 이미 처리되지만, 루트에 실수로 생길 경우 대비)
+# node_modules/  <-- frontend 폴더에 이미 .gitignore가 있으므로, 루트에서는 보통 필요 없음
+
+# Database files (만약 로컬 DB 파일이고, 커밋하고 싶지 않다면)
+# *.sqlite3
+# *.db
+>>>>>>> dev/junwon/backend-gemini
