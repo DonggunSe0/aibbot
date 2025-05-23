@@ -1,4 +1,4 @@
-# AIBBOT/backend/app.py
+# AIBBOT/backend/app.py (최종 버전)
 
 import os
 import mysql.connector
@@ -7,6 +7,9 @@ from flask_cors import CORS
 from dotenv import load_dotenv, find_dotenv
 import openai
 from werkzeug.security import generate_password_hash, check_password_hash
+
+# 향상된 RAG 서비스 임포트
+from rag_service import EnhancedAibbotRAGService
 
 # --- Load Environment Variables ---
 print("--- .env 파일 로드 시도 ---")
@@ -26,18 +29,35 @@ if OPENAI_API_KEY:
 else:
     print("!!! CRITICAL WARNING: OPENAI_API_KEY environment variable not found.")
 
-# DB Configuration (주석 해제 및 값 확인)
+# DB Configuration
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "3306")
 DB_USER = os.getenv("DB_USER")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
 
+# 향상된 RAG 서비스 초기화
+db_config = {
+    'host': DB_HOST,
+    'port': DB_PORT,
+    'user': DB_USER,
+    'password': DB_PASSWORD,
+    'database': DB_NAME
+}
+
+try:
+    openai_client = openai.OpenAI() if OPENAI_API_KEY else None
+    enhanced_rag_service = EnhancedAibbotRAGService(db_config, openai_client) if openai_client else None
+    print("Enhanced RAG Service 초기화 성공")
+except Exception as e:
+    print(f"Enhanced RAG Service 초기화 실패: {e}")
+    enhanced_rag_service = None
+
 # --- Flask App Setup ---
 app = Flask(__name__)
 CORS(app)
 
-# --- Helper Functions for DB Connection (개선된 방식) ---
+# --- Helper Functions for DB Connection ---
 def get_db_connection():
     if not all([DB_HOST, DB_USER, DB_PASSWORD, DB_NAME]):
         print("[DB Error] DB connection info missing.")
@@ -116,6 +136,7 @@ def get_policy_details_from_db(policy_id):
     return policy_details
 
 def generate_chat_response_from_llm(user_message, conversation_history=None):
+    """기존 단순 채팅 응답 함수 (RAG 사용하지 않는 경우)"""
     if not OPENAI_API_KEY:
         return "LLM API 키가 설정되지 않아 답변을 생성할 수 없습니다."
     try:
@@ -145,7 +166,7 @@ def generate_chat_response_from_llm(user_message, conversation_history=None):
 # --- API Endpoints ---
 @app.route("/")
 def home():
-    return "Flask 백엔드 서버 동작 중! (DB Test Ready)"
+    return "Flask 백엔드 서버 동작 중! (Enhanced RAG Service Ready)"
 
 @app.route("/api/test-db", methods=["GET"])
 def handle_test_db():
@@ -192,17 +213,69 @@ def handle_get_policy_details(policy_id):
 
 @app.route("/api/chat", methods=["POST"])
 def handle_chat():
+    """향상된 RAG 기반 채팅 API"""
     if not request.is_json:
         return jsonify({"error": "Request body must be JSON"}), 400
+    
     data = request.get_json()
     user_message = data.get("message")
+    user_profile = data.get("user_profile")  # 프론트엔드에서 사용자 프로필 전달
+    user_id = data.get("user_id")  # 로그인한 사용자 ID (선택적)
+    
     if not user_message or not isinstance(user_message, str) or not user_message.strip():
         return jsonify({"error": "Field 'message' is missing or empty"}), 400
-    print(f"\n--- New Chat Request Received ---")
+    
+    print(f"\n--- New Enhanced RAG Chat Request ---")
     print(f"User message: {user_message}")
-    response_text = generate_chat_response_from_llm(user_message)
-    print(f"Final Chat Answer Prepared.")
-    return jsonify({"answer": response_text})
+    print(f"User profile provided: {bool(user_profile)}")
+    print(f"User ID: {user_id}")
+    
+    # Enhanced RAG 서비스 사용 가능 여부 확인
+    if not enhanced_rag_service or not OPENAI_API_KEY:
+        print("Enhanced RAG Service 또는 OpenAI API 키가 없어서 기본 채팅으로 처리")
+        response_text = generate_chat_response_from_llm(user_message)
+        return jsonify({
+            "answer": response_text,
+            "processing_pipeline": "Fallback to basic chat"
+        })
+    
+    try:
+        # Enhanced RAG 처리 (QUA → HRA → AGA)
+        rag_result = enhanced_rag_service.process_query(
+            user_query=user_message,
+            user_profile=user_profile
+        )
+        
+        # 응답 구성
+        response_data = {
+            "answer": rag_result['answer'],
+            "cited_policies": rag_result.get('cited_policies', []),
+            "personalized": rag_result.get('personalized', False),
+            "search_results_count": rag_result.get('search_results_count', 0),
+            "confidence_score": rag_result.get('confidence_score', 0),
+            "processing_pipeline": rag_result.get('processing_pipeline', 'Enhanced RAG'),
+            "query_analysis": rag_result.get('query_analysis', {})
+        }
+        
+        print(f"Enhanced RAG Response prepared:")
+        print(f"- 참조 정책: {len(rag_result.get('cited_policies', []))}개")
+        print(f"- 개인화: {rag_result.get('personalized', False)}")
+        print(f"- 신뢰도: {rag_result.get('confidence_score', 0):.2f}")
+        print(f"- 처리 파이프라인: {rag_result.get('processing_pipeline', 'Enhanced RAG')}")
+        
+        return jsonify(response_data)
+        
+    except Exception as e:
+        print(f"[Enhanced RAG Chat Error] Enhanced RAG 처리 중 오류: {e}")
+        # Enhanced RAG 실패 시 기본 채팅으로 폴백
+        fallback_response = generate_chat_response_from_llm(user_message)
+        return jsonify({
+            "answer": fallback_response,
+            "cited_policies": [],
+            "personalized": False,
+            "processing_pipeline": "Fallback due to error",
+            "error": f"Enhanced RAG 처리 중 문제가 발생하여 기본 응답으로 처리했습니다: {str(e)}"
+        })
 
 # --- User Authentication Endpoints ---
 @app.route("/api/signup", methods=["POST"])
@@ -218,8 +291,8 @@ def handle_signup():
     if not username or not password:
         return jsonify({"success": False, "message": "사용자 이름과 비밀번호는 필수입니다."}), 400
     
-    # 비밀번호 길이 등 기본 유효성 검사 (프론트에서도 하지만 백엔드에서도 필요)
-    if len(password) < 4: # 예시: 최소 4자리
+    # 비밀번호 길이 등 기본 유효성 검사
+    if len(password) < 4:
         return jsonify({"success": False, "message": "비밀번호는 최소 4자 이상이어야 합니다."}), 400
 
     hashed_password = generate_password_hash(password)
@@ -232,7 +305,7 @@ def handle_signup():
         # 사용자 이름 중복 확인
         cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
         if cursor.fetchone():
-            return jsonify({"success": False, "message": "이미 사용 중인 사용자 이름입니다."}), 409 # 409 Conflict
+            return jsonify({"success": False, "message": "이미 사용 중인 사용자 이름입니다."}), 409
         
         # 이메일 중복 확인 (이메일이 제공된 경우)
         if email:
@@ -248,9 +321,7 @@ def handle_signup():
         return jsonify({"success": True, "message": "회원가입이 성공적으로 완료되었습니다."}), 201
     except (ValueError, mysql.connector.Error) as err:
         print(f"[API Signup Error] Database or config error: {err}")
-        # 좀 더 구체적인 오류 메시지를 사용자에게 전달할지 결정 필요
-        if isinstance(err, mysql.connector.Error) and err.errno == 1062: # Duplicate entry
-             # 이 부분은 위에서 username/email 중복을 미리 확인하므로, 이론상 도달하기 어려움
+        if isinstance(err, mysql.connector.Error) and err.errno == 1062:
             return jsonify({"success": False, "message": "사용자 이름 또는 이메일이 이미 존재합니다."}), 409
         return jsonify({"success": False, "message": f"회원가입 중 오류 발생: {err}"}), 500
     except Exception as e:
@@ -276,18 +347,15 @@ def handle_login():
     cursor = None
     try:
         conn = get_db_connection()
-        # 결과를 딕셔너리 형태로 받기
         cursor = conn.cursor(dictionary=True) 
         cursor.execute("SELECT id, username, password_hash FROM users WHERE username = %s", (username,))
         user = cursor.fetchone()
 
         if user and check_password_hash(user["password_hash"], password):
-            # 로그인 성공. 실제 앱에서는 세션/토큰 발급
-            # 여기서는 간단히 사용자 정보 (비밀번호 해시 제외) 반환
             user_info = {"id": user["id"], "username": user["username"]}
             return jsonify({"success": True, "message": "로그인 성공!", "user": user_info})
         else:
-            return jsonify({"success": False, "message": "사용자 이름 또는 비밀번호가 올바르지 않습니다."}), 401 # Unauthorized
+            return jsonify({"success": False, "message": "사용자 이름 또는 비밀번호가 올바르지 않습니다."}), 401
     except (ValueError, mysql.connector.Error) as err:
         print(f"[API Login Error] Database or config error: {err}")
         return jsonify({"success": False, "message": f"로그인 중 오류 발생: {err}"}), 500
@@ -300,5 +368,7 @@ def handle_login():
 
 # --- App Run ---
 if __name__ == "__main__":
-    print(f"Starting Flask server (DB Test Ready)... Access at http://127.0.0.1:5001")
+    print(f"Starting Flask server (Enhanced RAG Service Ready)...")
+    print(f"RAG Pipeline: QUA → HRA → AGA")
+    print(f"Access at http://127.0.0.1:5001")
     app.run(debug=True, port=5001)
