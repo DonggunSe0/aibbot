@@ -1,0 +1,8 @@
+2025-05-24 18:45:08,899 - INFO - 자동 스케줄링 설정 완료:
+2025-05-24 18:45:08,899 - INFO - 자동 동기화 백그라운드 스레드 시작됨
+2025-05-24 18:45:08,900 - INFO - - 매일 오전 6시 정책 동기화
+2025-05-24 18:45:08,900 - INFO - - 매주 월요일 오전 9시 정책 동기화
+2025-05-24 18:45:08,939 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001
+2025-05-24 18:45:08,940 - INFO - [33mPress CTRL+C to quit[0m
+2025-05-24 18:45:08,942 - INFO -  * Restarting with stat

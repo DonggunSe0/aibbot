@@ -1,8 +1,8 @@
-// frontend/src/components/chat/ChatBox.jsx (향상된 버전)
+// frontend/src/components/chat/ChatBox.jsx (정책 링크 연결 버전)
 import React, { useEffect, useRef, useState } from 'react';
 import LoadingIndicator from '../common/LoadingIndicator';
 
-function ChatBox({ messages, isLoading }) {
+function ChatBox({ messages, isLoading, onPolicyClick }) {
   const chatEndRef = useRef(null);
   const [expandedMessage, setExpandedMessage] = useState(null);
 
@@ -11,9 +11,26 @@ function ChatBox({ messages, isLoading }) {
   }, [messages, isLoading]);
 
   const handlePolicyClick = (policy) => {
-    if (policy.deviw_site_addr) {
-      window.open(policy.deviw_site_addr, '_blank');
+    // 1순위: 정책 상세 모달 열기 (onPolicyClick이 있는 경우)
+    if (onPolicyClick && policy.id) {
+      onPolicyClick(policy.id);
+      return;
     }
+    
+    // 2순위: 외부 링크 열기
+    if (policy.deviw_site_addr) {
+      window.open(policy.deviw_site_addr, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    
+    // 3순위: 신청하기 링크 열기
+    if (policy.aply_site_addr) {
+      window.open(policy.aply_site_addr, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    
+    // 마지막: 정책 ID만 있는 경우 알림
+    alert(`정책 상세 정보: ${policy.biz_nm || '정책명 없음'} (ID: ${policy.id || 'N/A'})`);
   };
 
   const formatMessage = (text) => {
@@ -46,10 +63,29 @@ function ChatBox({ messages, isLoading }) {
     return <div className="whitespace-pre-line">{text}</div>;
   };
 
+  const getMessageTypeStyle = (msg) => {
+    if (msg.sender === 'user') {
+      return 'bg-gradient-to-br from-pink-500 to-purple-600 text-white border-pink-300';
+    }
+    
+    switch (msg.type) {
+      case 'error':
+        return 'bg-red-50/90 text-red-800 border-red-200';
+      case 'warning':
+        return 'bg-amber-50/90 text-amber-800 border-amber-200';
+      case 'policy-list':
+        return 'bg-blue-50/90 text-blue-800 border-blue-200';
+      case 'personalized':
+        return 'bg-green-50/90 text-green-800 border-green-200';
+      case 'guide':
+        return 'bg-purple-50/90 text-purple-800 border-purple-200';
+      default:
+        return 'bg-white/90 text-gray-800 border-gray-200';
+    }
+  };
+
   const renderMessage = (msg, index) => {
     const isUser = msg.sender === 'user';
-    const isError = msg.type === 'error';
-    const isPolicyList = msg.type === 'policy-list';
     
     return (
       <div
@@ -61,12 +97,22 @@ function ChatBox({ messages, isLoading }) {
           <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow-md ${
             isUser 
               ? 'bg-gradient-to-br from-pink-400 to-purple-500' 
+              : msg.type === 'personalized'
+              ? 'bg-gradient-to-br from-green-400 to-emerald-500'
+              : msg.type === 'error' || msg.type === 'warning'
+              ? 'bg-gradient-to-br from-red-400 to-orange-500'
               : 'bg-gradient-to-br from-blue-400 to-cyan-500'
           }`}>
             {isUser ? (
               <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
               </svg>
+            ) : msg.type === 'personalized' ? (
+              <span className="text-white text-lg">🎯</span>
+            ) : msg.type === 'error' ? (
+              <span className="text-white text-lg">⚠️</span>
+            ) : msg.type === 'warning' ? (
+              <span className="text-white text-lg">💡</span>
             ) : (
               <span className="text-white text-lg">🤖</span>
             )}
@@ -76,15 +122,7 @@ function ChatBox({ messages, isLoading }) {
           <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
             {/* 메시지 버블 */}
             <div
-              className={`relative px-4 py-3 rounded-2xl shadow-md backdrop-blur-sm border transition-all duration-200 hover:shadow-lg ${
-                isUser
-                  ? 'bg-gradient-to-br from-pink-500 to-purple-600 text-white border-pink-300'
-                  : isError
-                  ? 'bg-red-50/90 text-red-800 border-red-200'
-                  : isPolicyList
-                  ? 'bg-blue-50/90 text-blue-800 border-blue-200'
-                  : 'bg-white/90 text-gray-800 border-gray-200'
-              }`}
+              className={`relative px-4 py-3 rounded-2xl shadow-md backdrop-blur-sm border transition-all duration-200 hover:shadow-lg ${getMessageTypeStyle(msg)}`}
             >
               {/* 메시지 내용 */}
               <div className="text-sm leading-relaxed">
@@ -92,21 +130,23 @@ function ChatBox({ messages, isLoading }) {
               </div>
 
               {/* 개인화 및 신뢰도 표시 */}
-              {!isUser && msg.personalized && (
-                <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-200">
-                  <div className="flex items-center gap-1">
-                    <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                    </svg>
-                    <span className="text-xs text-green-600 font-medium">개인 맞춤</span>
-                  </div>
+              {!isUser && (msg.personalized || msg.confidence_score) && (
+                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-current border-opacity-20">
+                  {msg.personalized && (
+                    <div className="flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-xs font-medium">개인 맞춤</span>
+                    </div>
+                  )}
                   
                   {msg.confidence_score && (
                     <div className="flex items-center gap-1">
-                      <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-xs text-blue-600 font-medium">
+                      <span className="text-xs font-medium">
                         신뢰도 {Math.round(msg.confidence_score * 100)}%
                       </span>
                     </div>
@@ -116,23 +156,29 @@ function ChatBox({ messages, isLoading }) {
 
               {/* 참고 정책 버튼들 */}
               {!isUser && msg.cited_policies && msg.cited_policies.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-200">
-                  <div className="text-xs text-gray-600 mb-2">참고 정책 ({msg.cited_policies.length}개)</div>
+                <div className="mt-3 pt-3 border-t border-current border-opacity-20">
+                  <div className="text-xs opacity-75 mb-2">참고 정책 ({msg.cited_policies.length}개)</div>
                   <div className="flex flex-wrap gap-2">
                     {msg.cited_policies.slice(0, 3).map((policy, idx) => (
                       <button
                         key={idx}
                         onClick={() => handlePolicyClick(policy)}
-                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs rounded-full transition-colors"
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-white bg-opacity-20 hover:bg-opacity-30 text-current text-xs rounded-full transition-all duration-200 hover:scale-105"
+                        title={`${policy.biz_nm} 상세보기`}
                       >
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                         </svg>
                         {policy.biz_nm && policy.biz_nm.length > 15 
                           ? `${policy.biz_nm.substring(0, 15)}...` 
-                          : policy.biz_nm}
+                          : policy.biz_nm || `정책 ${policy.id}`}
                       </button>
                     ))}
+                    {msg.cited_policies.length > 3 && (
+                      <span className="text-xs opacity-75 px-2 py-1">
+                        +{msg.cited_policies.length - 3}개 더
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
@@ -142,7 +188,7 @@ function ChatBox({ messages, isLoading }) {
                 className={`absolute top-4 w-3 h-3 transform rotate-45 ${
                   isUser
                     ? 'right-[-6px] bg-gradient-to-br from-pink-500 to-purple-600'
-                    : 'left-[-6px] bg-white border-l border-b border-gray-200'
+                    : `left-[-6px] ${getMessageTypeStyle(msg).split(' ')[0]} border-l border-b border-opacity-20`
                 }`}
               />
             </div>

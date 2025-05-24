@@ -1,6 +1,8 @@
+# requirements.txt (업데이트된 버전)
 requests
 mysql-connector-python
 python-dotenv
 Flask
 Werkzeug
 openai
+schedule

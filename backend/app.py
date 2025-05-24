@@ -1,4 +1,4 @@
-# AIBBOT/backend/app.py (최종 버전)
+# AIBBOT/backend/app.py (새로운 정책 API 추가 버전)
 
 import os
 import mysql.connector
@@ -7,6 +7,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv, find_dotenv
 import openai
 from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime, timedelta
 
 # 향상된 RAG 서비스 임포트
 from rag_service import EnhancedAibbotRAGService
@@ -38,16 +39,18 @@ DB_NAME = os.getenv("DB_NAME")
 
 # 향상된 RAG 서비스 초기화
 db_config = {
-    'host': DB_HOST,
-    'port': DB_PORT,
-    'user': DB_USER,
-    'password': DB_PASSWORD,
-    'database': DB_NAME
+    "host": DB_HOST,
+    "port": DB_PORT,
+    "user": DB_USER,
+    "password": DB_PASSWORD,
+    "database": DB_NAME,
 }
 
 try:
     openai_client = openai.OpenAI() if OPENAI_API_KEY else None
-    enhanced_rag_service = EnhancedAibbotRAGService(db_config, openai_client) if openai_client else None
+    enhanced_rag_service = (
+        EnhancedAibbotRAGService(db_config, openai_client) if openai_client else None
+    )
     print("Enhanced RAG Service 초기화 성공")
 except Exception as e:
     print(f"Enhanced RAG Service 초기화 실패: {e}")
@@ -56,6 +59,7 @@ except Exception as e:
 # --- Flask App Setup ---
 app = Flask(__name__)
 CORS(app)
+
 
 # --- Helper Functions for DB Connection ---
 def get_db_connection():
@@ -69,14 +73,96 @@ def get_db_connection():
             user=DB_USER,
             password=DB_PASSWORD,
             database=DB_NAME,
-            connect_timeout=5
+            connect_timeout=5,
         )
         return conn
     except mysql.connector.Error as err:
         print(f"[DB Error] Connection failed: {err}")
         raise err
 
-# DB에서 샘플 정책 데이터를 가져오는 테스트 함수
+
+# 새로 나온 정책 조회 함수 (실제 기능)
+def get_recent_policies_from_db(days=7, limit=10):
+    """최근 N일 내 추가/업데이트된 정책을 가져오는 함수"""
+    policies = []
+    conn = None
+    cursor = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # 최근 N일 내 생성/업데이트된 정책 조회
+        cutoff_date = datetime.now() - timedelta(days=days)
+
+        print(f"최근 {days}일 내 정책 조회 시작 (기준일: {cutoff_date})")
+
+        query = """
+            SELECT 
+                id, biz_nm, biz_cn, utztn_trpr_cn, 
+                biz_lclsf_nm, biz_mclsf_nm, biz_sclsf_nm,
+                trgt_child_age, trgt_rgn, deviw_site_addr, aply_site_addr,
+                created_at, updated_at,
+                CASE 
+                    WHEN created_at >= %s THEN 'new'
+                    WHEN updated_at >= %s THEN 'updated'
+                    ELSE 'existing'
+                END as policy_status,
+                CASE 
+                    WHEN created_at >= %s THEN created_at 
+                    ELSE updated_at 
+                END as recent_date
+            FROM policies 
+            WHERE created_at >= %s OR updated_at >= %s
+            ORDER BY recent_date DESC
+            LIMIT %s
+        """
+
+        cursor.execute(
+            query,
+            (cutoff_date, cutoff_date, cutoff_date, cutoff_date, cutoff_date, limit),
+        )
+        policies = cursor.fetchall()
+
+        if policies:
+            print(f"최근 {days}일 내 정책 {len(policies)}개 조회됨")
+            # 정책 상태별 개수 계산
+            status_count = {}
+            for policy in policies:
+                status = policy["policy_status"]
+                status_count[status] = status_count.get(status, 0) + 1
+            print(f"정책 상태: {status_count}")
+        else:
+            print("최근 추가/업데이트된 정책이 없습니다.")
+
+            # 폴백: 최근 생성된 정책들 (날짜 제한 없이)
+            print("전체 정책에서 최신 정책들을 조회합니다...")
+            fallback_query = """
+                SELECT 
+                    id, biz_nm, biz_cn, utztn_trpr_cn, 
+                    biz_lclsf_nm, biz_mclsf_nm, biz_sclsf_nm,
+                    trgt_child_age, trgt_rgn, deviw_site_addr, aply_site_addr,
+                    created_at, updated_at, 'existing' as policy_status,
+                    created_at as recent_date
+                FROM policies 
+                ORDER BY created_at DESC
+                LIMIT %s
+            """
+            cursor.execute(fallback_query, (limit,))
+            policies = cursor.fetchall()
+            print(f"폴백 조회: 최신 정책 {len(policies)}개")
+
+    except (ValueError, mysql.connector.Error) as err:
+        print(f"[DB Error] 최근 정책 조회 오류: {err}")
+        raise
+    finally:
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+    return policies
+
+
+# DB에서 샘플 정책 데이터를 가져오는 테스트 함수 (기존 유지)
 def get_sample_policies_from_db(limit=3):
     """DB에서 샘플 정책 정보(최대 limit 개수)를 가져와 리스트로 반환"""
     policies = []
@@ -87,7 +173,8 @@ def get_sample_policies_from_db(limit=3):
         cursor = conn.cursor(dictionary=True)
         print(f"DB Fetching sample policies (limit: {limit})")
         cursor.execute(
-            f"SELECT id, biz_nm, biz_cn, utztn_trpr_cn, biz_lclsf_nm, biz_mclsf_nm, biz_sclsf_nm, trgt_child_age, deviw_site_addr FROM policies LIMIT %s", (limit,)
+            f"SELECT id, biz_nm, biz_cn, utztn_trpr_cn, biz_lclsf_nm, biz_mclsf_nm, biz_sclsf_nm, trgt_child_age, deviw_site_addr FROM policies LIMIT %s",
+            (limit,),
         )
         policies = cursor.fetchall()
         if policies:
@@ -98,9 +185,12 @@ def get_sample_policies_from_db(limit=3):
         print(f"[DB Error] DB Fetch Sample Error: {err}")
         raise
     finally:
-        if cursor: cursor.close()
-        if conn and conn.is_connected(): conn.close()
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
     return policies
+
 
 # 특정 ID의 정책 상세 정보를 가져오는 함수
 def get_policy_details_from_db(policy_id):
@@ -131,9 +221,12 @@ def get_policy_details_from_db(policy_id):
         print(f"[DB Error] DB Fetch Policy Details Error: {err}")
         raise
     finally:
-        if cursor: cursor.close()
-        if conn and conn.is_connected(): conn.close()
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
     return policy_details
+
 
 def generate_chat_response_from_llm(user_message, conversation_history=None):
     """기존 단순 채팅 응답 함수 (RAG 사용하지 않는 경우)"""
@@ -163,10 +256,12 @@ def generate_chat_response_from_llm(user_message, conversation_history=None):
         print(f"[LLM Error] LLM API call/processing error: {e}")
         return "채팅 응답 생성 중 오류가 발생했습니다."
 
+
 # --- API Endpoints ---
 @app.route("/")
 def home():
-    return "Flask 백엔드 서버 동작 중! (Enhanced RAG Service Ready)"
+    return "Flask 백엔드 서버 동작 중! (Enhanced RAG + Auto Policy Sync Ready)"
+
 
 @app.route("/api/test-db", methods=["GET"])
 def handle_test_db():
@@ -190,20 +285,76 @@ def handle_test_db():
         print(f"[API DB Test Error] Unexpected error: {e}")
         return jsonify({"success": False, "message": f"서버 내부 오류: {str(e)}"}), 500
 
+
+@app.route("/api/recent-policies", methods=["GET"])
+def handle_get_recent_policies():
+    """새로 나온 정책 조회 API (실제 기능)"""
+    try:
+        # 쿼리 파라미터 처리
+        days = request.args.get("days", default=7, type=int)
+        limit = request.args.get("limit", default=10, type=int)
+
+        # 범위 제한
+        days = max(1, min(days, 30))  # 1일~30일
+        limit = max(1, min(limit, 50))  # 1개~50개
+
+        print(f"최근 {days}일, 최대 {limit}개 정책 조회 요청")
+
+        recent_policies = get_recent_policies_from_db(days, limit)
+
+        # 응답 데이터 구성
+        response_data = {
+            "success": True,
+            "data": recent_policies,
+            "query_params": {
+                "days": days,
+                "limit": limit,
+                "cutoff_date": (datetime.now() - timedelta(days=days)).isoformat(),
+            },
+            "summary": {
+                "total_count": len(recent_policies),
+                "new_policies": len(
+                    [p for p in recent_policies if p.get("policy_status") == "new"]
+                ),
+                "updated_policies": len(
+                    [p for p in recent_policies if p.get("policy_status") == "updated"]
+                ),
+                "message": f"최근 {days}일 내 정책 {len(recent_policies)}개를 조회했습니다.",
+            },
+        }
+
+        return jsonify(response_data)
+
+    except (ValueError, mysql.connector.Error) as err:
+        print(f"[API Recent Policies Error] Database error: {err}")
+        return (
+            jsonify({"success": False, "message": f"데이터베이스 오류: {str(err)}"}),
+            500,
+        )
+    except Exception as e:
+        print(f"[API Recent Policies Error] Unexpected error: {e}")
+        return jsonify({"success": False, "message": f"서버 내부 오류: {str(e)}"}), 500
+
+
 @app.route("/api/policy/<int:policy_id>", methods=["GET"])
 def handle_get_policy_details(policy_id):
     try:
         policy_data = get_policy_details_from_db(policy_id)
         if policy_data:
             policy_field_parts = [
-                policy_data.get('biz_lclsf_nm'),
-                policy_data.get('biz_mclsf_nm'),
-                policy_data.get('biz_sclsf_nm')
+                policy_data.get("biz_lclsf_nm"),
+                policy_data.get("biz_mclsf_nm"),
+                policy_data.get("biz_sclsf_nm"),
             ]
-            policy_data['policy_field'] = ' > '.join(filter(None, policy_field_parts))
+            policy_data["policy_field"] = " > ".join(filter(None, policy_field_parts))
             return jsonify({"success": True, "data": policy_data})
         else:
-            return jsonify({"success": False, "message": "해당 ID의 정책을 찾을 수 없습니다."}), 404
+            return (
+                jsonify(
+                    {"success": False, "message": "해당 ID의 정책을 찾을 수 없습니다."}
+                ),
+                404,
+            )
     except (ValueError, mysql.connector.Error) as err:
         print(f"[API Policy Details Error] Database or config error: {err}")
         return jsonify({"success": False, "message": str(err)}), 500
@@ -211,89 +362,164 @@ def handle_get_policy_details(policy_id):
         print(f"[API Policy Details Error] Unexpected error: {e}")
         return jsonify({"success": False, "message": f"서버 내부 오류: {str(e)}"}), 500
 
+
 @app.route("/api/chat", methods=["POST"])
 def handle_chat():
     """향상된 RAG 기반 채팅 API"""
     if not request.is_json:
         return jsonify({"error": "Request body must be JSON"}), 400
-    
+
     data = request.get_json()
     user_message = data.get("message")
     user_profile = data.get("user_profile")  # 프론트엔드에서 사용자 프로필 전달
     user_id = data.get("user_id")  # 로그인한 사용자 ID (선택적)
-    
-    if not user_message or not isinstance(user_message, str) or not user_message.strip():
+
+    if (
+        not user_message
+        or not isinstance(user_message, str)
+        or not user_message.strip()
+    ):
         return jsonify({"error": "Field 'message' is missing or empty"}), 400
-    
+
     print(f"\n--- New Enhanced RAG Chat Request ---")
     print(f"User message: {user_message}")
     print(f"User profile provided: {bool(user_profile)}")
     print(f"User ID: {user_id}")
-    
+
     # Enhanced RAG 서비스 사용 가능 여부 확인
     if not enhanced_rag_service or not OPENAI_API_KEY:
         print("Enhanced RAG Service 또는 OpenAI API 키가 없어서 기본 채팅으로 처리")
         response_text = generate_chat_response_from_llm(user_message)
-        return jsonify({
-            "answer": response_text,
-            "processing_pipeline": "Fallback to basic chat"
-        })
-    
+        return jsonify(
+            {"answer": response_text, "processing_pipeline": "Fallback to basic chat"}
+        )
+
     try:
         # Enhanced RAG 처리 (QUA → HRA → AGA)
         rag_result = enhanced_rag_service.process_query(
-            user_query=user_message,
-            user_profile=user_profile
+            user_query=user_message, user_profile=user_profile
         )
-        
+
         # 응답 구성
         response_data = {
-            "answer": rag_result['answer'],
-            "cited_policies": rag_result.get('cited_policies', []),
-            "personalized": rag_result.get('personalized', False),
-            "search_results_count": rag_result.get('search_results_count', 0),
-            "confidence_score": rag_result.get('confidence_score', 0),
-            "processing_pipeline": rag_result.get('processing_pipeline', 'Enhanced RAG'),
-            "query_analysis": rag_result.get('query_analysis', {})
+            "answer": rag_result["answer"],
+            "cited_policies": rag_result.get("cited_policies", []),
+            "personalized": rag_result.get("personalized", False),
+            "search_results_count": rag_result.get("search_results_count", 0),
+            "confidence_score": rag_result.get("confidence_score", 0),
+            "processing_pipeline": rag_result.get(
+                "processing_pipeline", "Enhanced RAG"
+            ),
+            "query_analysis": rag_result.get("query_analysis", {}),
         }
-        
+
         print(f"Enhanced RAG Response prepared:")
         print(f"- 참조 정책: {len(rag_result.get('cited_policies', []))}개")
         print(f"- 개인화: {rag_result.get('personalized', False)}")
         print(f"- 신뢰도: {rag_result.get('confidence_score', 0):.2f}")
-        print(f"- 처리 파이프라인: {rag_result.get('processing_pipeline', 'Enhanced RAG')}")
-        
+        print(
+            f"- 처리 파이프라인: {rag_result.get('processing_pipeline', 'Enhanced RAG')}"
+        )
+
         return jsonify(response_data)
-        
+
     except Exception as e:
         print(f"[Enhanced RAG Chat Error] Enhanced RAG 처리 중 오류: {e}")
         # Enhanced RAG 실패 시 기본 채팅으로 폴백
         fallback_response = generate_chat_response_from_llm(user_message)
-        return jsonify({
-            "answer": fallback_response,
-            "cited_policies": [],
-            "personalized": False,
-            "processing_pipeline": "Fallback due to error",
-            "error": f"Enhanced RAG 처리 중 문제가 발생하여 기본 응답으로 처리했습니다: {str(e)}"
-        })
+        return jsonify(
+            {
+                "answer": fallback_response,
+                "cited_policies": [],
+                "personalized": False,
+                "processing_pipeline": "Fallback due to error",
+                "error": f"Enhanced RAG 처리 중 문제가 발생하여 기본 응답으로 처리했습니다: {str(e)}",
+            }
+        )
+
+
+@app.route("/api/sync-policies", methods=["POST"])
+def handle_manual_sync():
+    """수동 정책 동기화 API (관리자용)"""
+    try:
+        # sync_data 모듈에서 PolicySyncService import
+        import sys
+        import os
+
+        # sync_data.py가 있는 경로를 sys.path에 추가
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(current_dir)
+        if parent_dir not in sys.path:
+            sys.path.append(parent_dir)
+
+        from sync_data import PolicySyncService
+
+        print("수동 정책 동기화 요청 받음")
+
+        policy_service = PolicySyncService()
+        success = policy_service.sync_policies()
+
+        if success:
+            # 동기화 후 최근 정책 조회
+            recent_policies = get_recent_policies_from_db(days=1, limit=5)
+
+            return jsonify(
+                {
+                    "success": True,
+                    "message": "정책 동기화가 성공적으로 완료되었습니다.",
+                    "recent_policies_count": len(recent_policies),
+                    "timestamp": datetime.now().isoformat(),
+                }
+            )
+        else:
+            return (
+                jsonify(
+                    {"success": False, "message": "정책 동기화 중 오류가 발생했습니다."}
+                ),
+                500,
+            )
+
+    except ImportError as e:
+        print(f"sync_data 모듈 import 실패: {e}")
+        return (
+            jsonify({"success": False, "message": "동기화 모듈을 찾을 수 없습니다."}),
+            500,
+        )
+    except Exception as e:
+        print(f"수동 동기화 오류: {e}")
+        return (
+            jsonify({"success": False, "message": f"동기화 중 오류 발생: {str(e)}"}),
+            500,
+        )
+
 
 # --- User Authentication Endpoints ---
 @app.route("/api/signup", methods=["POST"])
 def handle_signup():
     if not request.is_json:
         return jsonify({"success": False, "message": "Request body must be JSON"}), 400
-    
+
     data = request.get_json()
     username = data.get("username")
     password = data.get("password")
-    email = data.get("email") # 선택 사항
+    email = data.get("email")  # 선택 사항
 
     if not username or not password:
-        return jsonify({"success": False, "message": "사용자 이름과 비밀번호는 필수입니다."}), 400
-    
+        return (
+            jsonify(
+                {"success": False, "message": "사용자 이름과 비밀번호는 필수입니다."}
+            ),
+            400,
+        )
+
     # 비밀번호 길이 등 기본 유효성 검사
     if len(password) < 4:
-        return jsonify({"success": False, "message": "비밀번호는 최소 4자 이상이어야 합니다."}), 400
+        return (
+            jsonify(
+                {"success": False, "message": "비밀번호는 최소 4자 이상이어야 합니다."}
+            ),
+            400,
+        )
 
     hashed_password = generate_password_hash(password)
     conn = None
@@ -301,35 +527,67 @@ def handle_signup():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # 사용자 이름 중복 확인
         cursor.execute("SELECT id FROM users WHERE username = %s", (username,))
         if cursor.fetchone():
-            return jsonify({"success": False, "message": "이미 사용 중인 사용자 이름입니다."}), 409
-        
+            return (
+                jsonify(
+                    {"success": False, "message": "이미 사용 중인 사용자 이름입니다."}
+                ),
+                409,
+            )
+
         # 이메일 중복 확인 (이메일이 제공된 경우)
         if email:
             cursor.execute("SELECT id FROM users WHERE email = %s", (email,))
             if cursor.fetchone():
-                return jsonify({"success": False, "message": "이미 사용 중인 이메일입니다."}), 409
+                return (
+                    jsonify(
+                        {"success": False, "message": "이미 사용 중인 이메일입니다."}
+                    ),
+                    409,
+                )
 
         cursor.execute(
             "INSERT INTO users (username, password_hash, email) VALUES (%s, %s, %s)",
-            (username, hashed_password, email)
+            (username, hashed_password, email),
         )
         conn.commit()
-        return jsonify({"success": True, "message": "회원가입이 성공적으로 완료되었습니다."}), 201
+        return (
+            jsonify(
+                {"success": True, "message": "회원가입이 성공적으로 완료되었습니다."}
+            ),
+            201,
+        )
     except (ValueError, mysql.connector.Error) as err:
         print(f"[API Signup Error] Database or config error: {err}")
         if isinstance(err, mysql.connector.Error) and err.errno == 1062:
-            return jsonify({"success": False, "message": "사용자 이름 또는 이메일이 이미 존재합니다."}), 409
-        return jsonify({"success": False, "message": f"회원가입 중 오류 발생: {err}"}), 500
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "사용자 이름 또는 이메일이 이미 존재합니다.",
+                    }
+                ),
+                409,
+            )
+        return (
+            jsonify({"success": False, "message": f"회원가입 중 오류 발생: {err}"}),
+            500,
+        )
     except Exception as e:
         print(f"[API Signup Error] Unexpected error: {e}")
-        return jsonify({"success": False, "message": "서버 내부 오류가 발생했습니다."}), 500
+        return (
+            jsonify({"success": False, "message": "서버 내부 오류가 발생했습니다."}),
+            500,
+        )
     finally:
-        if cursor: cursor.close()
-        if conn and conn.is_connected(): conn.close()
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
 
 @app.route("/api/login", methods=["POST"])
 def handle_login():
@@ -341,34 +599,81 @@ def handle_login():
     password = data.get("password")
 
     if not username or not password:
-        return jsonify({"success": False, "message": "사용자 이름과 비밀번호를 입력해주세요."}), 400
+        return (
+            jsonify(
+                {"success": False, "message": "사용자 이름과 비밀번호를 입력해주세요."}
+            ),
+            400,
+        )
 
     conn = None
     cursor = None
     try:
         conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True) 
-        cursor.execute("SELECT id, username, password_hash FROM users WHERE username = %s", (username,))
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT id, username, password_hash FROM users WHERE username = %s",
+            (username,),
+        )
         user = cursor.fetchone()
 
         if user and check_password_hash(user["password_hash"], password):
             user_info = {"id": user["id"], "username": user["username"]}
-            return jsonify({"success": True, "message": "로그인 성공!", "user": user_info})
+            return jsonify(
+                {"success": True, "message": "로그인 성공!", "user": user_info}
+            )
         else:
-            return jsonify({"success": False, "message": "사용자 이름 또는 비밀번호가 올바르지 않습니다."}), 401
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": "사용자 이름 또는 비밀번호가 올바르지 않습니다.",
+                    }
+                ),
+                401,
+            )
     except (ValueError, mysql.connector.Error) as err:
         print(f"[API Login Error] Database or config error: {err}")
-        return jsonify({"success": False, "message": f"로그인 중 오류 발생: {err}"}), 500
+        return (
+            jsonify({"success": False, "message": f"로그인 중 오류 발생: {err}"}),
+            500,
+        )
     except Exception as e:
         print(f"[API Login Error] Unexpected error: {e}")
-        return jsonify({"success": False, "message": "서버 내부 오류가 발생했습니다."}), 500
+        return (
+            jsonify({"success": False, "message": "서버 내부 오류가 발생했습니다."}),
+            500,
+        )
     finally:
-        if cursor: cursor.close()
-        if conn and conn.is_connected(): conn.close()
+        if cursor:
+            cursor.close()
+        if conn and conn.is_connected():
+            conn.close()
+
 
 # --- App Run ---
 if __name__ == "__main__":
-    print(f"Starting Flask server (Enhanced RAG Service Ready)...")
+    print(f"Starting Flask server (Enhanced RAG + Auto Policy Sync Ready)...")
     print(f"RAG Pipeline: QUA → HRA → AGA")
+    print(f"새로운 API: /api/recent-policies (실제 새 정책 조회)")
+    print(f"관리자 API: /api/sync-policies (수동 동기화)")
     print(f"Access at http://127.0.0.1:5001")
+
+    # 백그라운드 자동 동기화 시작 (선택적)
+    try:
+        import sys
+        import os
+
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        parent_dir = os.path.dirname(current_dir)
+        if parent_dir not in sys.path:
+            sys.path.append(parent_dir)
+
+        from sync_data import start_auto_sync
+
+        start_auto_sync()
+        print("자동 정책 동기화 백그라운드 서비스 시작됨")
+    except Exception as e:
+        print(f"자동 동기화 시작 실패 (수동 실행 가능): {e}")
+
     app.run(debug=True, port=5001)
