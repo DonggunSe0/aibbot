@@ -36,11 +36,6 @@ AIBBOT은 서울시 임신·출산·육아 정책 정보를 AI 기반으로 제�
 
 ### 🤖 다중 에이전트 RAG 시스템
 
-<div align="center">
-  <img width="800" alt="AIBBOT Architecture" src="https://github.com/user-attachments/assets/aibbot-architecture.png">
-  <p><em>AIBBOT의 3단계 에이전트 아키텍처: QUA → HRA → AGA</em></p>
-</div>
-
 1. **QUA (Query Understanding Agent)**
    - 사용자 질문 의도 분석 및 핵심 엔티티 추출
    - 일상 용어를 표준화된 정책 용어로 매핑
@@ -67,19 +62,6 @@ schedule.every().monday.at("09:00").do(sync_policies)
 - 서울열린데이터광장 API 연동
 - 콘텐츠 해시 기반 실제 변경사항만 추적
 - 신규/업데이트/변경없음 상태 구분 관리
-
-### 🎨 직관적인 사용자 인터페이스
-
-<div align="center">
-  <img width="400" alt="Main UI" src="https://github.com/user-attachments/assets/aibbot-main.png">
-  <img width="400" alt="Chat Interface" src="https://github.com/user-attachments/assets/aibbot-chat.png">
-  <p><em>메인 화면(좌), 채팅 인터페이스(우)</em></p>
-</div>
-
-- React 기반 반응형 웹 애플리케이션
-- 실시간 채팅 인터페이스
-- 정책 상세 정보 모달 뷰어
-- 사용자 프로필 관리 시스템
 
 ## 시스템 아키텍처
 
