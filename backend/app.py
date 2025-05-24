@@ -81,9 +81,12 @@ def get_db_connection():
         raise err
 
 
-# 새로 나온 정책 조회 함수 (실제 기능)
+# backend/app.py에서 수정할 부분들
+
+
+# 새로 나온 정책 조회 함수 (실제 변경사항만)
 def get_recent_policies_from_db(days=7, limit=10):
-    """최근 N일 내 추가/업데이트된 정책을 가져오는 함수"""
+    """실제로 최근 N일 내 변경된 정책만 가져오는 함수"""
     policies = []
     conn = None
     cursor = None
@@ -91,10 +94,10 @@ def get_recent_policies_from_db(days=7, limit=10):
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # 최근 N일 내 생성/업데이트된 정책 조회
+        # 실제로 최근 N일 내에 생성되거나 업데이트된 정책만 조회
         cutoff_date = datetime.now() - timedelta(days=days)
 
-        print(f"최근 {days}일 내 정책 조회 시작 (기준일: {cutoff_date})")
+        print(f"실제 최근 {days}일 내 변경된 정책 조회 시작 (기준일: {cutoff_date})")
 
         query = """
             SELECT 
@@ -104,7 +107,7 @@ def get_recent_policies_from_db(days=7, limit=10):
                 created_at, updated_at,
                 CASE 
                     WHEN created_at >= %s THEN 'new'
-                    WHEN updated_at >= %s THEN 'updated'
+                    WHEN updated_at >= %s AND updated_at > created_at THEN 'updated'
                     ELSE 'existing'
                 END as policy_status,
                 CASE 
@@ -112,7 +115,7 @@ def get_recent_policies_from_db(days=7, limit=10):
                     ELSE updated_at 
                 END as recent_date
             FROM policies 
-            WHERE created_at >= %s OR updated_at >= %s
+            WHERE (created_at >= %s) OR (updated_at >= %s AND updated_at > created_at)
             ORDER BY recent_date DESC
             LIMIT %s
         """
@@ -124,7 +127,7 @@ def get_recent_policies_from_db(days=7, limit=10):
         policies = cursor.fetchall()
 
         if policies:
-            print(f"최근 {days}일 내 정책 {len(policies)}개 조회됨")
+            print(f"실제 최근 {days}일 내 변경된 정책 {len(policies)}개 조회됨")
             # 정책 상태별 개수 계산
             status_count = {}
             for policy in policies:
@@ -132,24 +135,7 @@ def get_recent_policies_from_db(days=7, limit=10):
                 status_count[status] = status_count.get(status, 0) + 1
             print(f"정책 상태: {status_count}")
         else:
-            print("최근 추가/업데이트된 정책이 없습니다.")
-
-            # 폴백: 최근 생성된 정책들 (날짜 제한 없이)
-            print("전체 정책에서 최신 정책들을 조회합니다...")
-            fallback_query = """
-                SELECT 
-                    id, biz_nm, biz_cn, utztn_trpr_cn, 
-                    biz_lclsf_nm, biz_mclsf_nm, biz_sclsf_nm,
-                    trgt_child_age, trgt_rgn, deviw_site_addr, aply_site_addr,
-                    created_at, updated_at, 'existing' as policy_status,
-                    created_at as recent_date
-                FROM policies 
-                ORDER BY created_at DESC
-                LIMIT %s
-            """
-            cursor.execute(fallback_query, (limit,))
-            policies = cursor.fetchall()
-            print(f"폴백 조회: 최신 정책 {len(policies)}개")
+            print(f"최근 {days}일 내 실제 변경된 정책이 없습니다.")
 
     except (ValueError, mysql.connector.Error) as err:
         print(f"[DB Error] 최근 정책 조회 오류: {err}")
@@ -438,15 +424,14 @@ def handle_chat():
         )
 
 
+# 수동 동기화 API 수정
 @app.route("/api/sync-policies", methods=["POST"])
 def handle_manual_sync():
-    """수동 정책 동기화 API (관리자용)"""
+    """수동 정책 동기화 API (실제 변경사항 추적)"""
     try:
-        # sync_data 모듈에서 PolicySyncService import
         import sys
         import os
 
-        # sync_data.py가 있는 경로를 sys.path에 추가
         current_dir = os.path.dirname(os.path.abspath(__file__))
         parent_dir = os.path.dirname(current_dir)
         if parent_dir not in sys.path:
@@ -457,27 +442,41 @@ def handle_manual_sync():
         print("수동 정책 동기화 요청 받음")
 
         policy_service = PolicySyncService()
-        success = policy_service.sync_policies()
+        result = policy_service.sync_policies()
 
-        if success:
-            # 동기화 후 최근 정책 조회
-            recent_policies = get_recent_policies_from_db(days=1, limit=5)
+        if result["success"]:
+            # 변경사항이 있는 경우와 없는 경우 구분
+            total_changes = result.get("total_changes", 0)
 
-            return jsonify(
-                {
-                    "success": True,
-                    "message": "정책 동기화가 성공적으로 완료되었습니다.",
-                    "recent_policies_count": len(recent_policies),
-                    "timestamp": datetime.now().isoformat(),
-                }
-            )
+            if total_changes == 0:
+                return jsonify(
+                    {
+                        "success": True,
+                        "message": "동기화 완료: 새로운 변경사항이 없습니다.",
+                        "changes": {
+                            "new_policies": 0,
+                            "updated_policies": 0,
+                            "total_changes": 0,
+                        },
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
+            else:
+                stats = result.get("stats", {})
+                return jsonify(
+                    {
+                        "success": True,
+                        "message": result["message"],
+                        "changes": {
+                            "new_policies": stats.get("new", 0),
+                            "updated_policies": stats.get("updated", 0),
+                            "total_changes": total_changes,
+                        },
+                        "timestamp": datetime.now().isoformat(),
+                    }
+                )
         else:
-            return (
-                jsonify(
-                    {"success": False, "message": "정책 동기화 중 오류가 발생했습니다."}
-                ),
-                500,
-            )
+            return jsonify({"success": False, "message": result["message"]}), 500
 
     except ImportError as e:
         print(f"sync_data 모듈 import 실패: {e}")

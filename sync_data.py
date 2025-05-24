@@ -1,4 +1,4 @@
-# sync_data.py (향상된 자동 업데이트 버전)
+# sync_data.py (수정된 버전 - 실제 변경사항만 추적)
 
 import requests
 import mysql.connector
@@ -6,6 +6,7 @@ import os
 import schedule
 import time
 import threading
+import hashlib
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 import logging
@@ -37,7 +38,7 @@ CHUNK_SIZE = 100
 
 
 class PolicySyncService:
-    """정책 데이터 자동 동기화 서비스"""
+    """정책 데이터 자동 동기화 서비스 (실제 변경사항 추적)"""
 
     def __init__(self):
         self.db_config = {
@@ -55,6 +56,25 @@ class PolicySyncService:
         except mysql.connector.Error as err:
             logger.error(f"DB 연결 실패: {err}")
             raise err
+
+    def create_content_hash(self, policy_data):
+        """정책 내용의 해시값 생성 (변경사항 감지용)"""
+        # 주요 내용들을 합쳐서 해시 생성
+        content_parts = [
+            str(policy_data.get("BIZ_NM", "")),
+            str(policy_data.get("BIZ_CN", "")),
+            str(policy_data.get("UTZTN_TRPR_CN", "")),
+            str(policy_data.get("UTZTN_MTHD_CN", "")),
+            str(policy_data.get("OPER_HR_CN", "")),
+            str(policy_data.get("AREF_CN", "")),
+            str(policy_data.get("TRGT_CHILD_AGE", "")),
+            str(policy_data.get("TRGT_RGN", "")),
+            str(policy_data.get("DEVIW_SITE_ADDR", "")),
+            str(policy_data.get("APLY_SITE_ADDR", "")),
+        ]
+
+        content_string = "|".join(content_parts)
+        return hashlib.md5(content_string.encode("utf-8")).hexdigest()
 
     def fetch_seoul_policies(self):
         """서울시 Open API에서 모든 정책 데이터를 가져오는 함수"""
@@ -118,8 +138,8 @@ class PolicySyncService:
         logger.info(f"데이터 가져오기 완료. 총 {len(all_policies)}개")
         return all_policies
 
-    def get_existing_policies(self):
-        """기존 DB의 정책 목록을 가져옴 (신규 정책 감지용)"""
+    def get_existing_policies_with_hash(self):
+        """기존 DB의 정책 목록을 해시값과 함께 가져옴"""
         conn = None
         cursor = None
         try:
@@ -128,27 +148,33 @@ class PolicySyncService:
 
             cursor.execute(
                 """
-                SELECT id, biz_nm, updated_at 
+                SELECT biz_nm, content_hash, id, updated_at 
                 FROM policies 
                 ORDER BY updated_at DESC
             """
             )
 
             existing_policies = cursor.fetchall()
+
+            # 정책명을 키로 하는 딕셔너리 생성
+            policies_dict = {}
+            for policy in existing_policies:
+                policies_dict[policy["biz_nm"]] = policy
+
             logger.info(f"기존 정책 {len(existing_policies)}개 조회됨")
-            return existing_policies
+            return policies_dict
 
         except mysql.connector.Error as err:
             logger.error(f"기존 정책 조회 실패: {err}")
-            return []
+            return {}
         finally:
             if cursor:
                 cursor.close()
             if conn and conn.is_connected():
                 conn.close()
 
-    def save_to_db_with_tracking(self, policies):
-        """정책을 DB에 저장하면서 신규/업데이트 추적"""
+    def save_to_db_with_real_change_tracking(self, policies):
+        """정책을 DB에 저장하면서 실제 변경사항만 추적"""
         conn = None
         cursor = None
 
@@ -158,21 +184,37 @@ class PolicySyncService:
 
             logger.info(f"DB 저장 시작... ({len(policies)}개)")
 
-            # 기존 정책명 목록 가져오기 (중복 확인용)
-            cursor.execute("SELECT biz_nm FROM policies")
-            existing_policy_names = {row[0] for row in cursor.fetchall()}
+            # 기존 정책들의 해시값 가져오기
+            existing_policies = self.get_existing_policies_with_hash()
 
             # 저장 통계
-            stats = {"new": 0, "updated": 0, "unchanged": 0, "new_policies": []}
+            stats = {
+                "new": 0,
+                "updated": 0,
+                "unchanged": 0,
+                "new_policies": [],
+                "updated_policies": [],
+            }
 
-            # INSERT ... ON DUPLICATE KEY UPDATE SQL 구문
+            # 테이블에 content_hash 컬럼이 없다면 추가
+            try:
+                cursor.execute(
+                    "ALTER TABLE policies ADD COLUMN content_hash VARCHAR(32)"
+                )
+                conn.commit()
+                logger.info("content_hash 컬럼 추가됨")
+            except mysql.connector.Error:
+                # 이미 존재하면 무시
+                pass
+
+            # INSERT ... ON DUPLICATE KEY UPDATE SQL 구문 (content_hash 포함)
             sql = """
             INSERT INTO policies (
                 biz_lclsf_nm, biz_mclsf_nm, biz_sclsf_nm, biz_nm, biz_cn,
                 utztn_trpr_cn, utztn_mthd_cn, oper_hr_cn, aref_cn, trgt_child_age,
-                trgt_itrst, trgt_rgn, deviw_site_addr, aply_site_addr
+                trgt_itrst, trgt_rgn, deviw_site_addr, aply_site_addr, content_hash
             ) VALUES (
-                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
             ) ON DUPLICATE KEY UPDATE
                 biz_lclsf_nm = VALUES(biz_lclsf_nm), 
                 biz_mclsf_nm = VALUES(biz_mclsf_nm),
@@ -187,7 +229,11 @@ class PolicySyncService:
                 trgt_rgn = VALUES(trgt_rgn), 
                 deviw_site_addr = VALUES(deviw_site_addr),
                 aply_site_addr = VALUES(aply_site_addr),
-                updated_at = CURRENT_TIMESTAMP
+                content_hash = VALUES(content_hash),
+                updated_at = CASE 
+                    WHEN content_hash != VALUES(content_hash) THEN CURRENT_TIMESTAMP
+                    ELSE updated_at
+                END
             """
 
             for policy in policies:
@@ -195,8 +241,26 @@ class PolicySyncService:
                 if not policy_name:
                     continue
 
-                # 신규 정책인지 확인
-                is_new = policy_name not in existing_policy_names
+                # 새로운 해시값 계산
+                new_hash = self.create_content_hash(policy)
+
+                # 기존 정책 정보 확인
+                existing_policy = existing_policies.get(policy_name)
+
+                if not existing_policy:
+                    # 완전히 새로운 정책
+                    is_new = True
+                    is_updated = False
+                elif existing_policy.get("content_hash") != new_hash:
+                    # 내용이 변경된 정책
+                    is_new = False
+                    is_updated = True
+                else:
+                    # 변경사항 없는 정책
+                    is_new = False
+                    is_updated = False
+                    stats["unchanged"] += 1
+                    continue  # 저장하지 않고 넘어감
 
                 values = (
                     policy.get("BIZ_LCLSF_NM"),
@@ -213,6 +277,7 @@ class PolicySyncService:
                     policy.get("TRGT_RGN"),
                     policy.get("DEVIW_SITE_ADDR"),
                     policy.get("APLY_SITE_ADDR"),
+                    new_hash,
                 )
 
                 try:
@@ -228,12 +293,16 @@ class PolicySyncService:
                             }
                         )
                         logger.info(f"신규 정책 추가: {policy_name}")
-                    else:
-                        # affected_rows로 실제 업데이트 여부 확인
-                        if cursor.rowcount > 1:  # INSERT는 1, UPDATE는 2
-                            stats["updated"] += 1
-                        else:
-                            stats["unchanged"] += 1
+                    elif is_updated:
+                        stats["updated"] += 1
+                        stats["updated_policies"].append(
+                            {
+                                "name": policy_name,
+                                "category": policy.get("BIZ_MCLSF_NM", "기타"),
+                                "target": policy.get("UTZTN_TRPR_CN", "")[:100],
+                            }
+                        )
+                        logger.info(f"정책 업데이트: {policy_name}")
 
                 except mysql.connector.Error as err:
                     logger.error(f"정책 저장 오류 ({policy_name}): {err}")
@@ -246,18 +315,25 @@ class PolicySyncService:
                 f"""
 DB 저장 완료:
 - 신규 정책: {stats['new']}개
-- 업데이트: {stats['updated']}개  
+- 실제 업데이트: {stats['updated']}개  
 - 변경 없음: {stats['unchanged']}개
 """
             )
 
-            # 신규 정책이 있으면 자세히 로깅
+            # 변경사항이 있는 경우만 자세히 로깅
             if stats["new_policies"]:
                 logger.info("신규 정책 목록:")
-                for policy in stats["new_policies"][:10]:  # 최대 10개만
+                for policy in stats["new_policies"][:5]:
                     logger.info(f"  - {policy['name']} ({policy['category']})")
-                if len(stats["new_policies"]) > 10:
-                    logger.info(f"  ... 외 {len(stats['new_policies']) - 10}개 더")
+                if len(stats["new_policies"]) > 5:
+                    logger.info(f"  ... 외 {len(stats['new_policies']) - 5}개 더")
+
+            if stats["updated_policies"]:
+                logger.info("업데이트된 정책 목록:")
+                for policy in stats["updated_policies"][:5]:
+                    logger.info(f"  - {policy['name']} ({policy['category']})")
+                if len(stats["updated_policies"]) > 5:
+                    logger.info(f"  ... 외 {len(stats['updated_policies']) - 5}개 더")
 
             return stats
 
@@ -272,15 +348,15 @@ DB 저장 완료:
             if conn and conn.is_connected():
                 conn.close()
 
-    def get_recent_policies(self, days=7):
-        """최근 N일 내 추가/업데이트된 정책 조회"""
+    def get_truly_recent_policies(self, days=7):
+        """실제로 최근에 변경된 정책만 조회"""
         conn = None
         cursor = None
         try:
             conn = self.get_db_connection()
             cursor = conn.cursor(dictionary=True)
 
-            # 최근 N일 내 생성/업데이트된 정책
+            # 최근 N일 내에 실제로 생성되거나 업데이트된 정책만
             cutoff_date = datetime.now() - timedelta(days=days)
 
             cursor.execute(
@@ -288,22 +364,29 @@ DB 저장 완료:
                 SELECT 
                     id, biz_nm, biz_cn, utztn_trpr_cn, 
                     biz_lclsf_nm, biz_mclsf_nm, biz_sclsf_nm,
-                    trgt_child_age, trgt_rgn, deviw_site_addr,
-                    created_at, updated_at
-                FROM policies 
-                WHERE created_at >= %s OR updated_at >= %s
-                ORDER BY 
+                    trgt_child_age, trgt_rgn, deviw_site_addr, aply_site_addr,
+                    created_at, updated_at,
+                    CASE 
+                        WHEN created_at >= %s THEN 'new'
+                        WHEN updated_at >= %s AND updated_at > created_at THEN 'updated'
+                        ELSE 'existing'
+                    END as policy_status,
                     CASE 
                         WHEN created_at >= %s THEN created_at 
                         ELSE updated_at 
-                    END DESC
-                LIMIT 20
+                    END as recent_date
+                FROM policies 
+                WHERE (created_at >= %s) OR (updated_at >= %s AND updated_at > created_at)
+                ORDER BY recent_date DESC
+                LIMIT 50
             """,
-                (cutoff_date, cutoff_date, cutoff_date),
+                (cutoff_date, cutoff_date, cutoff_date, cutoff_date, cutoff_date),
             )
 
             recent_policies = cursor.fetchall()
-            logger.info(f"최근 {days}일 내 정책 {len(recent_policies)}개 조회")
+            logger.info(
+                f"실제 최근 {days}일 내 변경된 정책 {len(recent_policies)}개 조회"
+            )
             return recent_policies
 
         except mysql.connector.Error as err:
@@ -316,7 +399,7 @@ DB 저장 완료:
                 conn.close()
 
     def sync_policies(self):
-        """정책 동기화 메인 함수"""
+        """정책 동기화 메인 함수 (실제 변경사항만 추적)"""
         try:
             logger.info("=== 정책 동기화 시작 ===")
             start_time = datetime.now()
@@ -325,17 +408,29 @@ DB 저장 완료:
             policies = self.fetch_seoul_policies()
             if not policies:
                 logger.warning("가져온 정책 데이터가 없습니다.")
-                return False
+                return {
+                    "success": False,
+                    "message": "API에서 데이터를 가져올 수 없습니다.",
+                }
 
-            # 2. DB에 저장하면서 변경사항 추적
-            stats = self.save_to_db_with_tracking(policies)
+            # 2. DB에 저장하면서 실제 변경사항만 추적
+            stats = self.save_to_db_with_real_change_tracking(policies)
             if stats is None:
                 logger.error("DB 저장 실패")
-                return False
+                return {"success": False, "message": "데이터베이스 저장 실패"}
 
             # 3. 소요 시간 계산
             end_time = datetime.now()
             duration = end_time - start_time
+
+            # 4. 결과 메시지 생성
+            total_changes = stats["new"] + stats["updated"]
+            if total_changes == 0:
+                message = "동기화 완료: 새로운 변경사항이 없습니다."
+            else:
+                message = (
+                    f"동기화 완료: 신규 {stats['new']}개, 업데이트 {stats['updated']}개"
+                )
 
             logger.info(
                 f"""
@@ -343,26 +438,29 @@ DB 저장 완료:
 소요 시간: {duration.total_seconds():.1f}초
 처리된 정책: {len(policies)}개
 신규 정책: {stats['new']}개
-업데이트: {stats['updated']}개
+실제 업데이트: {stats['updated']}개
+변경 없음: {stats['unchanged']}개
 """
             )
 
-            return True
+            return {
+                "success": True,
+                "message": message,
+                "stats": stats,
+                "total_changes": total_changes,
+            }
 
         except Exception as e:
             logger.error(f"정책 동기화 실패: {e}")
-            return False
+            return {"success": False, "message": f"동기화 실패: {str(e)}"}
 
 
-# 스케줄러 설정
+# 기존 스케줄러 코드는 동일...
 def setup_scheduler():
     """자동 스케줄링 설정"""
     policy_service = PolicySyncService()
 
-    # 매일 오전 6시에 동기화
     schedule.every().day.at("06:00").do(policy_service.sync_policies)
-
-    # 매주 월요일 오전 9시에 동기화 (추가)
     schedule.every().monday.at("09:00").do(policy_service.sync_policies)
 
     logger.info("자동 스케줄링 설정 완료:")
@@ -376,7 +474,7 @@ def run_scheduler():
 
     while True:
         schedule.run_pending()
-        time.sleep(60)  # 1분마다 체크
+        time.sleep(60)
 
 
 def start_auto_sync():
@@ -396,19 +494,18 @@ if __name__ == "__main__":
         command = sys.argv[1]
 
         if command == "sync":
-            # 즉시 동기화
-            policy_service.sync_policies()
+            result = policy_service.sync_policies()
+            print(f"동기화 결과: {result['message']}")
 
         elif command == "recent":
-            # 최근 정책 조회
             days = int(sys.argv[2]) if len(sys.argv) > 2 else 7
-            recent = policy_service.get_recent_policies(days)
-            print(f"\n최근 {days}일 내 정책 {len(recent)}개:")
+            recent = policy_service.get_truly_recent_policies(days)
+            print(f"\n실제 최근 {days}일 내 변경된 정책 {len(recent)}개:")
             for policy in recent:
-                print(f"- {policy['biz_nm']} ({policy['updated_at']})")
+                status = "🆕" if policy["policy_status"] == "new" else "🔄"
+                print(f"{status} {policy['biz_nm']} ({policy['updated_at']})")
 
         elif command == "auto":
-            # 자동 스케줄링 시작
             print("자동 정책 동기화 서비스 시작...")
             print("종료하려면 Ctrl+C를 누르세요.")
             try:
@@ -423,5 +520,5 @@ if __name__ == "__main__":
             print("  python sync_data.py recent 3 # 최근 3일 정책 조회")
             print("  python sync_data.py auto     # 자동 스케줄링 시작")
     else:
-        # 기본 동작: 즉시 동기화
-        policy_service.sync_policies()
+        result = policy_service.sync_policies()
+        print(f"동기화 결과: {result['message']}")
