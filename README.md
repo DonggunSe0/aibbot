@@ -85,43 +85,73 @@ schedule.every().monday.at("09:00").do(sync_policies)
 
 ```mermaid
 graph TB
-    subgraph "Frontend (React)"
-        UI[사용자 인터페이스]
-        Profile[프로필 관리]
-        Chat[채팅 컴포넌트]
+    subgraph Frontend["Frontend (React)"]
+        direction LR
+        UI[사용자 인터페이스] --> ChatInputProcessing[채팅/프로필 입력 처리]
+        ChatInputProcessing --> API_Call[API 호출]
+        subgraph Components["Components"]
+            direction TB
+            Profile[프로필 관리 UI]
+            Chat[채팅 UI]
+        end
     end
     
-    subgraph "Backend (Flask)"
-        API[REST API]
-        QUA[QUA Agent]
-        HRA[HRA Agent]
-        AGA[AGA Agent]
-        Sync[동기화 서비스]
+    subgraph Backend["Backend (Flask)"]
+        direction TB
+        APIGateway[API Gateway / Router]
+        subgraph RAGCore["RAG Core"]
+            direction TB
+            QUA[QUA Agent<br/>질의이해/표준화]
+            HRA[HRA Agent<br/>하이브리드 검색/개인화]
+            AGA[AGA Agent<br/>답변생성/출처명시]
+        end
+        Auth[인증/인가]
+        SyncService[정책 동기화 서비스]
     end
     
-    subgraph "Data Layer"
-        MySQL[(MySQL DB)]
-        Seoul[서울시 API]
+    subgraph DataLayer["Data Layer"]
+        direction TB
+        MySQL[(MySQL DB<br/>정책, 사용자 프로필)]
+        SeoulAPI[서울시 정책 API]
+        VectorDB[(Vector DB<br/>정책 임베딩)]
     end
     
-    subgraph "AI Layer"
-        OpenAI[OpenAI GPT-3.5]
+    subgraph ExternalAI["External AI Services"]
+        OpenAI_LLM[OpenAI GPT]
     end
     
-    UI --> API
-    Profile --> API
-    Chat --> API
+    %% Frontend to Backend
+    API_Call --> APIGateway
     
-    API --> QUA
+    %% Backend Internal Flows
+    APIGateway --> QUA
+    APIGateway --> Auth
+    Auth --> APIGateway
     QUA --> HRA
     HRA --> AGA
-    AGA --> OpenAI
+    AGA --> OpenAI_LLM
+    OpenAI_LLM --> AGA
+    AGA --> APIGateway
+    APIGateway --> API_Call
     
+    %% Data Access
+    APIGateway --> MySQL
     HRA --> MySQL
-    Sync --> Seoul
-    Sync --> MySQL
+    HRA --> VectorDB
+    SyncService --> SeoulAPI
+    SyncService --> MySQL
+    SyncService --> VectorDB
     
-    API --> MySQL
+    %% Styling
+    classDef frontend fill:#DCEEFB,stroke:#A9CCE3,stroke-width:2px
+    classDef backend fill:#D5F5E3,stroke:#A3E4D7,stroke-width:2px
+    classDef data fill:#FCF3CF,stroke:#F7DC6F,stroke-width:2px
+    classDef ai fill:#FADBD8,stroke:#F1948A,stroke-width:2px
+    
+    class UI,Profile,Chat,ChatInputProcessing,API_Call frontend
+    class APIGateway,QUA,HRA,AGA,Auth,SyncService backend
+    class MySQL,SeoulAPI,VectorDB data
+    class OpenAI_LLM ai
 ```
 
 ## 기술 스택
