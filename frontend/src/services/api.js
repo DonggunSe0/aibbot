@@ -1,4 +1,4 @@
-// frontend/src/services/api.js (새 정책 API 추가 버전)
+// frontend/src/services/api.js (완전히 수정된 버전)
 import axios from 'axios';
 
 const API_BASE_URL = '/api'; // Vite 프록시를 사용
@@ -65,7 +65,7 @@ export const findPersonalizedPolicies = async (messageText = "내 상황에 맞�
   }
 };
 
-// 새로 나온 정책 조회 API (실제 기능)
+// 새로 나온 정책 조회 API (완전히 수정된 버전)
 export const fetchRecentPolicies = async (days = 7, limit = 10) => {
   try {
     const params = new URLSearchParams({
@@ -73,10 +73,21 @@ export const fetchRecentPolicies = async (days = 7, limit = 10) => {
       limit: limit.toString()
     });
     
-    console.log(`최근 ${days}일 내 정책 ${limit}개 조회 요청`);
+    console.log(`실제 최근 ${days}일 내 변경된 정책 ${limit}개 조회 요청`);
     
     const response = await axios.get(`${API_BASE_URL}/recent-policies?${params}`);
-    return response.data; // { success: true, data: [...], summary: {...} }
+    const result = response.data;
+    
+    // 응답 로깅
+    console.log('API 응답:', {
+      success: result.success,
+      dataCount: result.data ? result.data.length : 0,
+      summary: result.summary,
+      newPolicies: result.summary?.new_policies || 0,
+      updatedPolicies: result.summary?.updated_policies || 0
+    });
+    
+    return result; // { success: true, data: [...], summary: {...} }
   } catch (error) {
     console.error("새로 나온 정책 조회 중 오류:", error.response ? error.response.data : error.message);
     const errorMessage = error.response?.data?.message || error.message || '새로 나온 정책 조회 중 알 수 없는 서버 오류가 발생했습니다.';
@@ -120,7 +131,15 @@ export const syncPoliciesManually = async () => {
   try {
     console.log('수동 정책 동기화 요청');
     const response = await axios.post(`${API_BASE_URL}/sync-policies`);
-    return response.data; // { success: true, message: "...", recent_policies_count: N }
+    const result = response.data;
+    
+    console.log('동기화 응답:', {
+      success: result.success,
+      message: result.message,
+      changes: result.changes
+    });
+    
+    return result; // { success: true, message: "...", changes: {...} }
   } catch (error) {
     console.error("수동 정책 동기화 중 오류:", error.response ? error.response.data : error.message);
     throw error.response?.data || new Error('정책 동기화 중 서버 오류가 발생했습니다.');
@@ -199,7 +218,7 @@ export const getUserProfileSummary = () => {
   return parts.length > 0 ? parts.join(', ') : '정보 미등록';
 };
 
-// 새로 나온 정책 분석 함수 (프론트엔드용 헬퍼)
+// 새로 나온 정책 분석 함수 (완전히 수정된 버전)
 export const analyzeRecentPolicies = (policiesData) => {
   if (!policiesData || !policiesData.data) {
     return {
@@ -211,14 +230,26 @@ export const analyzeRecentPolicies = (policiesData) => {
   const policies = policiesData.data;
   const summary = policiesData.summary || {};
   
+  // 실제 API 응답의 summary 값을 우선 사용
+  const newCount = summary.new_policies || 0;
+  const updatedCount = summary.updated_policies || 0;
+  const totalCount = policies.length;
+  
+  console.log('정책 분석:', {
+    totalCount,
+    newCount,
+    updatedCount,
+    summary
+  });
+  
   const analysis = {
-    isEmpty: policies.length === 0,
-    totalCount: policies.length,
-    newCount: summary.new_policies || 0,
-    updatedCount: summary.updated_policies || 0,
+    isEmpty: totalCount === 0,
+    totalCount: totalCount,
+    newCount: newCount,
+    updatedCount: updatedCount,
     categories: {},
     recentDays: policiesData.query_params?.days || 7,
-    message: summary.message || `${policies.length}개의 정책을 찾았습니다.`
+    message: summary.message || `${totalCount}개의 정책을 찾았습니다.`
   };
 
   // 카테고리별 분류
@@ -227,16 +258,20 @@ export const analyzeRecentPolicies = (policiesData) => {
     analysis.categories[category] = (analysis.categories[category] || 0) + 1;
   });
 
-  // 상태별 메시지 구성
-  if (analysis.newCount > 0 && analysis.updatedCount > 0) {
-    analysis.statusMessage = `신규 ${analysis.newCount}개, 업데이트 ${analysis.updatedCount}개`;
-  } else if (analysis.newCount > 0) {
-    analysis.statusMessage = `신규 정책 ${analysis.newCount}개`;
-  } else if (analysis.updatedCount > 0) {
-    analysis.statusMessage = `업데이트된 정책 ${analysis.updatedCount}개`;
+  // 상태별 메시지 구성 (수정된 로직)
+  if (totalCount === 0) {
+    analysis.statusMessage = "변경된 정책 없음";
+  } else if (newCount > 0 && updatedCount > 0) {
+    analysis.statusMessage = `신규 ${newCount}개, 업데이트 ${updatedCount}개`;
+  } else if (newCount > 0) {
+    analysis.statusMessage = `신규 정책 ${newCount}개`;
+  } else if (updatedCount > 0) {
+    analysis.statusMessage = `업데이트된 정책 ${updatedCount}개`;
   } else {
+    // 목록에는 있지만 실제 변경사항이 없는 경우 (이론적으로 발생하지 않아야 함)
     analysis.statusMessage = "최신 정책";
   }
 
+  console.log('분석 결과:', analysis);
   return analysis;
 };

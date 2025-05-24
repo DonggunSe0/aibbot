@@ -1,4 +1,4 @@
-// frontend/src/App.jsx (최종 버전 - 실제 새 정책 기능 포함)
+// frontend/src/App.jsx (완전히 수정된 버전)
 import { useState, useEffect } from 'react';
 import TopBar from './components/common/TopBar';
 import MenuSelector from './components/interactive/MenuSelector';
@@ -30,7 +30,7 @@ function App() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authMessage, setAuthMessage] = useState('');
 
-  // 새로운 정책 관련 상태 (기존 DB 테스트 대체)
+  // 새로운 정책 관련 상태
   const [recentPoliciesData, setRecentPoliciesData] = useState(null);
   const [recentPoliciesError, setRecentPoliciesError] = useState(null);
   const [isRecentPoliciesLoading, setIsRecentPoliciesLoading] = useState(false);
@@ -93,126 +93,158 @@ function App() {
     }
   };
 
-  // 새로 나온 정책 조회 함수 (개선된 메시지)
-const loadRecentPolicies = async (days = 7) => {
-  setRecentPoliciesData(null);
-  setRecentPoliciesError(null);
-  setIsRecentPoliciesLoading(true);
-  setPoliciesAnalysis(null);
-  
-  try {
-    console.log(`최근 ${days}일 내 실제 변경된 정책 조회 시작`);
-    const result = await fetchRecentPolicies(days, 15);
+  // 새로 나온 정책 조회 함수 (완전히 수정된 버전)
+  const loadRecentPolicies = async (days = 7) => {
+    setRecentPoliciesData(null);
+    setRecentPoliciesError(null);
+    setIsRecentPoliciesLoading(true);
+    setPoliciesAnalysis(null);
     
-    if (result.success) {
-      setRecentPoliciesData(result);
-      const analysis = analyzeRecentPolicies(result);
-      setPoliciesAnalysis(analysis);
+    try {
+      console.log(`최근 ${days}일 내 실제 변경된 정책 조회 시작`);
+      const result = await fetchRecentPolicies(days, 15);
       
-      // 결과에 따른 차별화된 메시지
-      let responseMessage;
-      
-      if (analysis.isEmpty) {
-        responseMessage = {
-          sender: 'gpt',
-          text: `📋 최근 ${days}일 내 새로 추가되거나 업데이트된 정책이 없습니다.\n\n모든 정책이 최신 상태를 유지하고 있어요. 다른 기간으로 검색해보시거나 다른 질문을 해보세요!`,
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'info'
-        };
-      } else if (analysis.newCount === 0 && analysis.updatedCount === 0) {
-        responseMessage = {
-          sender: 'gpt',
-          text: `📋 최근 ${days}일 내 변경된 정책 ${analysis.totalCount}개를 찾았습니다.\n\n하지만 실제 새로운 변경사항은 없어요. 정책 이름을 클릭하시면 자세한 내용을 확인할 수 있습니다.`,
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'policy-list'
-        };
+      if (result.success) {
+        setRecentPoliciesData(result);
+        const analysis = analyzeRecentPolicies(result);
+        setPoliciesAnalysis(analysis);
+        
+        // 수정된 메시지 로직 - 실제 데이터 개수 기반
+        let responseMessage;
+        const actualPolicyCount = result.data ? result.data.length : 0;
+        const newCount = result.summary?.new_policies || 0;
+        const updatedCount = result.summary?.updated_policies || 0;
+        
+        if (actualPolicyCount === 0) {
+          // 실제로 정책이 없는 경우
+          responseMessage = {
+            sender: 'gpt',
+            text: `📋 최근 ${days}일 내 실제로 새로 추가되거나 업데이트된 정책이 없습니다.\n\n모든 정책이 최신 상태를 유지하고 있어요. 다른 기간으로 검색해보시거나 다른 질문을 해보세요!`,
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'info'
+          };
+        } else {
+          // 실제 정책이 있는 경우 - 상태별 구분
+          if (newCount > 0 || updatedCount > 0) {
+            // 실제 변경사항이 있는 경우
+            let statusText = [];
+            if (newCount > 0) statusText.push(`신규 ${newCount}개`);
+            if (updatedCount > 0) statusText.push(`업데이트 ${updatedCount}개`);
+            
+            responseMessage = {
+              sender: 'gpt',
+              text: `📋 최근 ${days}일 내 변경된 정책 ${actualPolicyCount}개를 찾았습니다!\n\n🆕 ${statusText.join(', ')}의 정책을 확인할 수 있어요. 정책 이름을 클릭하시면 자세한 내용을 확인할 수 있습니다.`,
+              timestamp: new Date().toLocaleTimeString(),
+              type: 'policy-list'
+            };
+          } else {
+            // 날짜 범위에는 있지만 실제 변경사항은 없는 경우 (이론적으로는 발생하지 않아야 함)
+            responseMessage = {
+              sender: 'gpt',
+              text: `📋 최근 ${days}일 내 조회된 정책 ${actualPolicyCount}개가 있지만, 실제 새로운 변경사항은 없습니다.\n\n정책 이름을 클릭하시면 상세 내용을 확인할 수 있어요.`,
+              timestamp: new Date().toLocaleTimeString(),
+              type: 'policy-list'
+            };
+          }
+        }
+        
+        setMessages(prev => [...prev, responseMessage]);
+        console.log('새로 나온 정책 조회 성공:', analysis);
       } else {
-        responseMessage = {
+        setRecentPoliciesError(result.message || "정책 목록을 불러오는데 실패했습니다.");
+        const errorMessage = {
           sender: 'gpt',
-          text: `📋 ${analysis.message}\n\n🆕 ${analysis.statusMessage}를 확인할 수 있습니다! 정책 이름을 클릭하시면 자세한 내용을 확인할 수 있어요.`,
+          text: `❌ 정책 목록 로딩 실패: ${result.message || "알 수 없는 오류"}`,
           timestamp: new Date().toLocaleTimeString(),
-          type: 'policy-list'
+          type: 'error'
         };
+        setMessages(prev => [...prev, errorMessage]);
       }
-      
-      setMessages(prev => [...prev, responseMessage]);
-      console.log('새로 나온 정책 조회 성공:', analysis);
-    } else {
-      setRecentPoliciesError(result.message || "정책 목록을 불러오는데 실패했습니다.");
+    } catch (error) {
+      setRecentPoliciesError(error.message);
       const errorMessage = {
         sender: 'gpt',
-        text: `❌ 정책 목록 로딩 실패: ${result.message || "알 수 없는 오류"}`,
+        text: `❌ 오류 발생: ${error.message}`,
         timestamp: new Date().toLocaleTimeString(),
         type: 'error'
       };
       setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsRecentPoliciesLoading(false);
     }
-  } catch (error) {
-    setRecentPoliciesError(error.message);
-    const errorMessage = {
-      sender: 'gpt',
-      text: `❌ 오류 발생: ${error.message}`,
-      timestamp: new Date().toLocaleTimeString(),
-      type: 'error'
-    };
-    setMessages(prev => [...prev, errorMessage]);
-  } finally {
-    setIsRecentPoliciesLoading(false);
-  }
-};
+  };
 
-  // 수동 정책 동기화 함수 (중복 방지 + 실제 변경사항 표시)
-const handleManualSync = async () => {
-  if (isSyncing) return;
-  
-  setIsSyncing(true);
-  try {
-    console.log('수동 정책 동기화 시작');
-    const result = await syncPoliciesManually();
+  // 수동 정책 동기화 함수 (완전히 수정된 버전)
+  const handleManualSync = async () => {
+    if (isSyncing) return;
     
-    if (result.success) {
-      const changes = result.changes || {};
-      const totalChanges = changes.total_changes || 0;
+    setIsSyncing(true);
+    try {
+      console.log('수동 정책 동기화 시작');
+      const result = await syncPoliciesManually();
       
-      if (totalChanges === 0) {
-        setAuthMessage('동기화 완료: 새로운 변경사항이 없습니다.');
+      if (result.success) {
+        const changes = result.changes || {};
+        const totalChanges = changes.total_changes || 0;
         
-        // 변경사항이 없다는 메시지를 채팅에 추가
-        const noChangesMessage = {
-          sender: 'gpt',
-          text: '🔄 정책 동기화를 완료했습니다.\n\n현재 모든 정책이 최신 상태입니다. 새로운 변경사항이 없어요.',
-          timestamp: new Date().toLocaleTimeString(),
-          type: 'info'
-        };
-        setMessages(prev => [...prev, noChangesMessage]);
+        if (totalChanges === 0) {
+          setAuthMessage('동기화 완료: 새로운 변경사항이 없습니다.');
+          
+          // 변경사항이 없다는 메시지를 채팅에 추가
+          const noChangesMessage = {
+            sender: 'gpt',
+            text: '🔄 정책 동기화를 완료했습니다.\n\n현재 모든 정책이 최신 상태입니다. 새로운 변경사항이 없어요.',
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'info'
+          };
+          setMessages(prev => [...prev, noChangesMessage]);
+          
+          // 기존에 표시된 새로 나온 정책 목록이 있다면 정리 (변경사항이 없으므로)
+          setRecentPoliciesData(null);
+          setPoliciesAnalysis(null);
+          
+        } else {
+          const message = `동기화 완료: 신규 ${changes.new_policies}개, 업데이트 ${changes.updated_policies}개`;
+          setAuthMessage(message);
+          
+          // 성공 메시지를 채팅에 추가
+          const successMessage = {
+            sender: 'gpt',
+            text: `🔄 정책 동기화를 완료했습니다!\n\n✅ ${message}\n\n실제로 변경된 정책이 있습니다. "새로 나온 정책 보기"를 클릭하여 확인해보세요.`,
+            timestamp: new Date().toLocaleTimeString(),
+            type: 'success'
+          };
+          setMessages(prev => [...prev, successMessage]);
+          
+          // 변경사항이 있는 경우 자동으로 최신 정책 로드
+          setTimeout(() => {
+            loadRecentPolicies(1); // 최근 1일 내 정책 조회
+          }, 1000);
+        }
       } else {
-        const message = `동기화 완료: 신규 ${changes.new_policies}개, 업데이트 ${changes.updated_policies}개`;
-        setAuthMessage(message);
-        
-        // 변경사항이 있는 경우 최신 정책 다시 로드
-        setTimeout(() => {
-          loadRecentPolicies(1); // 최근 1일 내 정책 조회
-        }, 1000);
-        
-        // 성공 메시지를 채팅에 추가
-        const successMessage = {
+        setAuthMessage('정책 동기화 중 오류가 발생했습니다.');
+        const errorMessage = {
           sender: 'gpt',
-          text: `🔄 정책 동기화를 완료했습니다!\n\n✅ ${message}\n\n"새로 나온 정책 보기"를 클릭하여 변경된 정책을 확인해보세요.`,
+          text: '❌ 정책 동기화 중 오류가 발생했습니다. 잠시 후 다시 시도해보세요.',
           timestamp: new Date().toLocaleTimeString(),
-          type: 'success'
+          type: 'error'
         };
-        setMessages(prev => [...prev, successMessage]);
+        setMessages(prev => [...prev, errorMessage]);
       }
-    } else {
+    } catch (error) {
+      console.error('수동 동기화 실패:', error);
       setAuthMessage('정책 동기화 중 오류가 발생했습니다.');
+      const errorMessage = {
+        sender: 'gpt',
+        text: '❌ 정책 동기화 중 서버 오류가 발생했습니다. 잠시 후 다시 시도해보세요.',
+        timestamp: new Date().toLocaleTimeString(),
+        type: 'error'
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsSyncing(false);
     }
-  } catch (error) {
-    console.error('수동 동기화 실패:', error);
-    setAuthMessage('정책 동기화 중 오류가 발생했습니다.');
-  } finally {
-    setIsSyncing(false);
-  }
-};
+  };
 
   const handleMenuSelect = async (menuName) => {
     // 사용자 메시지 먼저 추가
@@ -240,7 +272,7 @@ const handleManualSync = async () => {
       // 사용자에게 검색 중임을 알림
       const searchingMessage = {
         sender: 'gpt',
-        text: '🔍 최근 7일 내 새로 추가되거나 업데이트된 정책을 찾고 있어요...',
+        text: '🔍 최근 7일 내 실제로 변경된 정책을 찾고 있어요...',
         timestamp: new Date().toLocaleTimeString(),
         type: 'searching'
       };
@@ -454,7 +486,7 @@ const handleManualSync = async () => {
             <div className="my-6 p-6 border border-blue-200 rounded-2xl bg-blue-50/50 backdrop-blur-sm">
               <div className="flex items-center gap-3">
                 <LoadingIndicator size="sm" />
-                <p className="text-blue-700 font-medium">최신 정책을 불러오는 중...</p>
+                <p className="text-blue-700 font-medium">실제 변경된 정책을 불러오는 중...</p>
               </div>
             </div>
           )}
@@ -479,7 +511,7 @@ const handleManualSync = async () => {
                 <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" clipRule="evenodd" />
                 </svg>
-                <h4 className="font-semibold text-gray-800">새로 나온 정책</h4>
+                <h4 className="font-semibold text-gray-800">실제 변경된 정책</h4>
                 <span className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
                   {recentPoliciesData.data.length}개
                 </span>
@@ -530,7 +562,7 @@ const handleManualSync = async () => {
                   ))}
                 </div>
               ) : (
-                <p className="text-sm text-gray-600 text-center py-4">새로 나온 정책이 없습니다.</p>
+                <p className="text-sm text-gray-600 text-center py-4">실제로 변경된 정책이 없습니다.</p>
               )}
             </div>
           )}
