@@ -1,9 +1,8 @@
-// src/components/modals/LoginModal.jsx
 import { useState } from 'react';
-import { loginUser } from '../../services/api'; // API 서비스 임포트
+import { loginUser } from '../../services/api';
 
-function LoginModal({ onClose, onLoginSuccess, onNavigateToSignup }) { // onLogin -> onLoginSuccess, onNavigateToSignup 추가
-  const [username, setUsername] = useState(''); // id -> username
+function LoginModal({ onClose, onLoginSuccess, onNavigateToSignup }) {
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -13,11 +12,10 @@ function LoginModal({ onClose, onLoginSuccess, onNavigateToSignup }) { // onLogi
     setError('');
     setIsLoading(true);
     try {
-      // API 호출: credentials 객체 사용
-      const response = await loginUser({ username, password }); 
+      const response = await loginUser({ username, password });
       if (response.success) {
-        if (onLoginSuccess) onLoginSuccess(response.user, response.message); // 사용자 정보와 메시지 전달
-        onClose(); // 성공 시 모달 닫기
+        if (onLoginSuccess) onLoginSuccess(response.user, response.message);
+        onClose();
       } else {
         setError(response.message || '로그인에 실패했습니다.');
       }
@@ -32,13 +30,17 @@ function LoginModal({ onClose, onLoginSuccess, onNavigateToSignup }) { // onLogi
     <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-[100] p-4">
       <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-sm">
         <h2 className="text-xl font-bold mb-6 text-center">로그인</h2>
-        {error && <p className="text-sm text-red-600 bg-red-100 p-2 rounded mb-4 text-center">{error}</p>}
+        {error && (
+          <p className="text-sm text-red-600 bg-red-100 p-2 rounded mb-4 text-center">
+            {error}
+          </p>
+        )}
         <form onSubmit={handleSubmit} className="space-y-5">
           <input
             type="text"
             placeholder="아이디"
-            value={username} // id -> username
-            onChange={(e) => setUsername(e.target.value)} // setId -> setUsername
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             className="w-full border border-gray-300 px-3 py-2 rounded-md focus:ring-2 focus:ring-main-pink focus:border-main-pink"
             required
           />
@@ -62,17 +64,17 @@ function LoginModal({ onClose, onLoginSuccess, onNavigateToSignup }) { // onLogi
               <button
                 type="submit"
                 disabled={isLoading}
-                className="px-4 py-2 bg-main-pink text-white rounded-md hover:bg-pink-300 transition-colors disabled:opacity-50"
+                className="px-4 py-2 bg-main-pink text-black rounded-md hover:bg-pink-300 transition-colors disabled:opacity-50"
               >
                 {isLoading ? '로그인 중...' : '로그인'}
               </button>
             </div>
             <div className="text-center">
-              <button 
+              <button
                 type="button"
                 onClick={() => {
-                  onClose(); // 로그인 모달 닫고
-                  onNavigateToSignup(); // 회원가입 모달 열기 요청
+                  onClose();
+                  onNavigateToSignup();
                 }}
                 className="text-sm text-blue-600 hover:underline"
               >
