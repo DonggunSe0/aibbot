@@ -40,9 +40,9 @@ const SignupModal = ({ isOpen, onClose, onSignupSuccess }) => {
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-600 bg-opacity-50 flex items-center justify-center p-4">
       <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-auto my-8 transform transition-all">
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">회원가입</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+        <div className="px-6 py-4 border-b border-gray-200 relative">
+          <h3 className="text-lg leading-6 font-bold text-gray-900 text-center">회원가입</h3>
+          <button onClick={onClose} className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
             <svg className="w-6 h-6" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor"><path d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
         </div>
@@ -86,7 +86,7 @@ const SignupModal = ({ isOpen, onClose, onSignupSuccess }) => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-black bg-main-pink hover:bg-pink-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
             >
               {isLoading ? '가입 중...' : '회원가입'}
             </button>
