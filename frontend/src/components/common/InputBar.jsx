@@ -42,7 +42,7 @@ function InputBar({ onSend, isLoading }) {
 
   return (
     <div className="fixed bottom-0 left-0 w-full bg-white/80 backdrop-blur-md border-t border-gray-200 shadow-lg z-[50]">
-      <div className="w-full max-w-4xl mx-auto px-4 py-4">
+      <div className="w-full max-w-4xl mx-auto px-4 py-2">
         <form onSubmit={handleSubmit} className="relative">
           <div className={`relative bg-white rounded-2xl shadow-lg border-2 transition-all duration-200 ${
             isFocused 
@@ -96,7 +96,7 @@ function InputBar({ onSend, isLoading }) {
           </div>
           
           {/* 힌트 텍스트 */}
-          <div className="flex items-center justify-between mt-2 px-2">
+          <div className="flex items-center justify-between mt-1 px-2">
             <div className="flex items-center gap-4 text-xs text-gray-500">
               <span>💡 예시: "강남구 출산 지원금", "어린이집 보육료"</span>
             </div>
