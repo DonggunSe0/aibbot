@@ -34,8 +34,8 @@ function MenuSelector({ onSelect }) {
           
           {/* 이모지 */}
           <div className="relative mb-4">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-50 rounded-2xl group-hover:scale-110 transition-transform duration-300">
-              <span className="text-3xl">{menu.emoji}</span>
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl group-hover:scale-110 transition-transform duration-300">
+              <span className="text-5xl">{menu.emoji}</span>
             </div>
           </div>
           
