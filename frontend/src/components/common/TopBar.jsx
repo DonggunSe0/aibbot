@@ -19,7 +19,7 @@ function TopBar({ onLoginClick, currentUser, onLogout }) {
 
   return (
     <div className="fixed top-0 left-0 w-full bg-white/90 backdrop-blur-md border-b border-gray-200 z-[100] shadow-sm">
-      <div className="w-full max-w-4xl mx-auto px-4 py-4">
+      <div className="w-full max-w-4xl mx-auto px-4 py-2">
         <div className="flex items-center justify-between">
           {/* 로고 섹션 */}
           <div className="flex items-center gap-3">
