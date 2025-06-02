@@ -19,7 +19,7 @@ const PolicyDetailModal = ({ isOpen, onClose, policy, isLoading, error }) => {
           
           {/* Top Bar */}
           <div className="bg-[#FFCCE1] flex items-center justify-center relative px-4 py-3 rounded-t-lg">
-            <h3 className="text-base font-bold text-gray-900 text-center w-full">
+            <h3 className="text-base font-bold text-gray-900 text-center w-full drop-shadow-lg">
               {policy?.biz_nm || '정책 정보'}
             </h3>
             <button
