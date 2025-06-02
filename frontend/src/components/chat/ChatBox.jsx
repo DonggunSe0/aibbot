@@ -33,34 +33,15 @@ function ChatBox({ messages, isLoading, onPolicyClick }) {
     alert(`정책 상세 정보: ${policy.biz_nm || '정책명 없음'} (ID: ${policy.id || 'N/A'})`);
   };
 
-  const formatMessage = (text) => {
-    // 정책 참조 섹션을 찾아서 하이퍼링크로 변환
+  const formatMessage = (text = '') => {
+    // 참고 정책 텍스트 패턴 (📋 **참고 정책:** 부터 다음 빈 줄 또는 문장 끝까지)
     const policyReferenceRegex = /📋\s*\*\*참고\s*정책:\*\*\s*([\s\S]*?)(?=\n\n|\n$|$)/;
-    const match = text.match(policyReferenceRegex);
-    
-    if (match) {
-      const beforePolicy = text.substring(0, match.index);
-      const policySection = match[1];
-      const afterPolicy = text.substring(match.index + match[0].length);
-      
-      return (
-        <div>
-          <div className="whitespace-pre-line mb-4">{beforePolicy}</div>
-          <div className="bg-gray-50 p-3 rounded-lg border-l-4 border-blue-400">
-            <div className="flex items-center gap-2 mb-2">
-              <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" clipRule="evenodd" />
-              </svg>
-              <span className="font-semibold text-gray-700">참고 정책</span>
-            </div>
-            <div className="text-sm text-gray-600 whitespace-pre-line">{policySection}</div>
-          </div>
-          {afterPolicy && <div className="whitespace-pre-line mt-4">{afterPolicy}</div>}
-        </div>
-      );
-    }
-    
-    return <div className="whitespace-pre-line">{text}</div>;
+
+    // 텍스트에서 참고 정책 부분 삭제
+    const newText = text.replace(policyReferenceRegex, '');
+
+    // 나머지 텍스트를 줄바꿈 유지하여 렌더링
+    return <div className="whitespace-pre-line">{newText.trim()}</div>;
   };
 
   const getMessageTypeStyle = (msg) => {
@@ -85,128 +66,127 @@ function ChatBox({ messages, isLoading, onPolicyClick }) {
   };
 
   const renderMessage = (msg, index) => {
-    const isUser = msg.sender === 'user';
-    
-    return (
-      <div
-        key={index}
-        className={`flex mb-6 ${isUser ? 'justify-end' : 'justify-start'}`}
-      >
-        <div className={`flex gap-3 max-w-[85%] ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
-          {/* 아바타 */}
-          <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow-md ${
-            isUser 
-              ? 'bg-gradient-to-br from-pink-400 to-purple-500' 
-              : msg.type === 'personalized'
-              ? 'bg-gradient-to-br from-green-400 to-emerald-500'
-              : msg.type === 'error' || msg.type === 'warning'
-              ? 'bg-gradient-to-br from-red-400 to-orange-500'
-              : 'bg-gradient-to-br from-blue-400 to-cyan-500'
-          }`}>
-            {isUser ? (
-              <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-              </svg>
-            ) : msg.type === 'personalized' ? (
-              <span className="text-white text-lg">🎯</span>
-            ) : msg.type === 'error' ? (
-              <span className="text-white text-lg">⚠️</span>
-            ) : msg.type === 'warning' ? (
-              <span className="text-white text-lg">💡</span>
-            ) : (
-              <span className="text-white text-lg">🤖</span>
-            )}
-          </div>
-
-          {/* 메시지 콘텐츠 */}
-          <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
-            {/* 메시지 버블 */}
-            <div
-              className={`relative px-4 py-3 rounded-2xl shadow-md backdrop-blur-sm border transition-all duration-200 hover:shadow-lg ${getMessageTypeStyle(msg)}`}
-            >
-              {/* 메시지 내용 */}
-              <div className="text-sm leading-relaxed">
-                {formatMessage(msg.text)}
-              </div>
-
-              {/* 개인화 및 신뢰도 표시 */}
-              {!isUser && (msg.personalized || msg.confidence_score) && (
-                <div className="flex items-center gap-3 mt-3 pt-3 border-t border-current border-opacity-20">
-                  {msg.personalized && (
-                    <div className="flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-xs font-medium">개인 맞춤</span>
-                    </div>
-                  )}
-                  
-                  {msg.confidence_score && (
-                    <div className="flex items-center gap-1">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-xs font-medium">
-                        신뢰도 {Math.round(msg.confidence_score * 100)}%
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* 참고 정책 버튼들 */}
-              {!isUser && msg.cited_policies && msg.cited_policies.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-current border-opacity-20">
-                  <div className="text-xs opacity-75 mb-2">참고 정책 ({msg.cited_policies.length}개)</div>
-                  <div className="flex flex-wrap gap-2">
-                    {msg.cited_policies.slice(0, 3).map((policy, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => handlePolicyClick(policy)}
-                        className="inline-flex items-center gap-1 px-2 py-1 bg-white bg-opacity-20 hover:bg-opacity-30 text-current text-xs rounded-full transition-all duration-200 hover:scale-105"
-                        title={`${policy.biz_nm} 상세보기`}
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                        {policy.biz_nm && policy.biz_nm.length > 15 
-                          ? `${policy.biz_nm.substring(0, 15)}...` 
-                          : policy.biz_nm || `정책 ${policy.id}`}
-                      </button>
-                    ))}
-                    {msg.cited_policies.length > 3 && (
-                      <span className="text-xs opacity-75 px-2 py-1">
-                        +{msg.cited_policies.length - 3}개 더
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* 말풍선 꼬리 */}
-              <div
-                className={`absolute top-4 w-3 h-3 transform rotate-45 ${
-                  isUser
-                    ? 'right-[-6px] bg-gradient-to-br from-pink-500 to-purple-600'
-                    : `left-[-6px] ${getMessageTypeStyle(msg).split(' ')[0]} border-l border-b border-opacity-20`
-                }`}
-              />
-            </div>
-
-            {/* 타임스탬프 */}
-            {msg.timestamp && (
-              <div className={`text-xs text-gray-500 mt-1 ${isUser ? 'text-right' : 'text-left'}`}>
-                {msg.timestamp}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
+  const isUser = msg.sender === 'user';
 
   return (
-    <div className="flex flex-col mt-6 space-y-1 min-h-[400px] max-h-[600px] overflow-y-auto">
+    <div key={index} className={`flex mb-6 flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+      <div className={`flex gap-3 max-w-[85%] ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+        {/* 아바타 */}
+        <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center shadow-md ${
+          isUser 
+            ? 'bg-gradient-to-br from-pink-400 to-purple-500' 
+            : msg.type === 'personalized'
+            ? 'bg-gradient-to-br from-green-400 to-emerald-500'
+            : msg.type === 'error' || msg.type === 'warning'
+            ? 'bg-gradient-to-br from-red-400 to-orange-500'
+            : 'bg-gradient-to-br from-blue-400 to-cyan-500'
+        }`}>
+          {/* 아이콘 */}
+          {isUser ? (
+            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+            </svg>
+          ) : msg.type === 'personalized' ? (
+            <span className="text-white text-lg">🎯</span>
+          ) : msg.type === 'error' ? (
+            <span className="text-white text-lg">⚠️</span>
+          ) : msg.type === 'warning' ? (
+            <span className="text-white text-lg">💡</span>
+          ) : (
+            <span className="text-white text-lg">🤖</span>
+          )}
+        </div>
+
+        {/* 메시지 콘텐츠 */}
+        <div className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+          {/* 메시지 버블 */}
+          <div
+            className={`relative px-4 py-3 rounded-2xl shadow-md backdrop-blur-sm border transition-all duration-200 hover:shadow-lg ${getMessageTypeStyle(msg)}`}
+          >
+            {/* 메시지 내용 */}
+            <div className="text-sm leading-relaxed">
+              {formatMessage(msg.text)}
+            </div>
+
+            {/* 개인화 및 신뢰도 표시 */}
+            {!isUser && (msg.personalized || msg.confidence_score) && (
+              <div className="flex items-center gap-3 mt-3 pt-3 border-t border-current border-opacity-20">
+                {msg.personalized && (
+                  <div className="flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-xs font-medium">개인 맞춤</span>
+                  </div>
+                )}
+
+                {msg.confidence_score && (
+                  <div className="flex items-center gap-1">
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-xs font-medium">
+                      신뢰도 {Math.round(msg.confidence_score * 100)}%
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 말풍선 꼬리 */}
+            <div
+              className={`absolute top-4 w-3 h-3 transform rotate-45 ${
+                isUser
+                  ? 'right-[-6px] bg-gradient-to-br from-pink-500 to-purple-600'
+                  : `left-[-6px] ${getMessageTypeStyle(msg).split(' ')[0]} border-l border-b border-opacity-20`
+              }`}
+            />
+          </div>
+
+          {/* 타임스탬프 */}
+          {msg.timestamp && (
+            <div className={`text-xs text-gray-500 mt-1 ${isUser ? 'text-right' : 'text-left'}`}>
+              {msg.timestamp}
+            </div>
+          )}
+
+          {/* 참고 정책 카드 */}
+          {!isUser && msg.cited_policies && msg.cited_policies.length > 0 && (
+            <div className="mt-3 flex overflow-x-auto gap-4 max-w">
+              {msg.cited_policies.slice(0, 3).map((policy, i) => (
+                <div
+                  key={i}
+                  onClick={() => handlePolicyClick(policy)}
+                  className="flex-shrink-0 w-60 min-h-[120px] cursor-pointer rounded-lg border-l-4 border-blue-400 bg-gray-50 p-3 shadow hover:shadow-lg transition flex flex-col"
+                  title={`${policy.biz_nm} 상세보기`}
+                >
+                  <div className="font-semibold text-gray-900 whitespace-normal break-words">
+                    {policy.biz_nm || `정책 ${policy.id}`}
+                  </div>
+                  <div className="mt-auto inline-block bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded border border-blue-300 self-start">
+                    {policy.application_period || '상시'}
+                  </div>
+                </div>
+              ))}
+              {msg.cited_policies.length > 3 && (
+                <div className="flex-shrink-0 w-20 h-32 flex items-center justify-center text-xs text-gray-500 select-none">
+                  +{msg.cited_policies.length - 3}개 더
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+          
+            
+             
+
+  return (
+    <div className="flex flex-col mt-6 space-y-1 min-h-[400px] max-h-[600px] overflow-y-auto pb-20">
       {messages.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center text-gray-500">
@@ -242,7 +222,7 @@ function ChatBox({ messages, isLoading, onPolicyClick }) {
           </div>
         </div>
       )}
-
+    
       <div ref={chatEndRef} />
     </div>
   );
