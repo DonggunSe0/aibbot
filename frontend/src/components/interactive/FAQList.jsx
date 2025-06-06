@@ -41,36 +41,40 @@ function FAQList({ onSelect }) {
   return (
     <div className="mb-8">
       {/* 섹션 헤더 */}
-      <div className="flex items-center justify-center mb-6">
-        <div className="flex items-center gap-3">
-          <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent flex-1 w-12"></div>
-          {/* "자주 묻는 질문" 텍스트와 아이콘 */}
-          <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-gray-200">
+      <div className="relative flex items-center justify-center mb-6">
+        {/* 중앙 그룹 (FAQ 버튼과 양옆 라인) */}
+        <div className="flex items-center">
+          {/* 왼쪽 라인 */}
+          <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent w-36"></div>
+          
+          {/* "자주 묻는 질문" 버튼 */}
+          <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-gray-200 mx-4">
             <svg className="w-4 h-4 text-pink-500" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
             </svg>
             <span className="text-sm font-medium text-gray-700">자주 묻는 질문</span>
           </div>
-          <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent flex-1 w-12"></div>
-
-          {/* "열기/접기" 버튼을 아이콘 옆에 위치 */}
-          <div
-            onClick={() => setIsOpen(prev => !prev)}
-            className="flex items-center gap-1 cursor-pointer hover:text-gray-600 transition-colors duration-200"
+          
+          {/* 오른쪽 라인 */}
+          <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent w-36"></div>
+        </div>
+        
+        {/* 절대 위치로 오른쪽 끝에 배치되는 열기/접기 버튼 */}
+        <div
+          onClick={() => setIsOpen(prev => !prev)}
+          className="absolute right-0 flex items-center gap-1 cursor-pointer hover:text-gray-600 transition-colors duration-200"
+        >
+          <span className="text-xs text-gray-400">
+            {isOpen ? '접기' : '열기'}
+          </span>
+          <svg 
+            className={`w-3 h-3 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
           >
-            <span className="text-xs text-gray-400">
-              {isOpen ? '접기' : '열기'}
-            </span>
-            <svg 
-              className={`w-3 h-3 text-gray transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
-
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
         </div>
       </div>
           
