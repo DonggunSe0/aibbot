@@ -3,6 +3,7 @@ import { useState } from 'react';
 
 function FAQList({ onSelect }) {
   const [hoveredIndex, setHoveredIndex] = useState(null);
+  const [isOpen, setIsOpen] = useState(true);
 
   const faqs = [
     {
@@ -43,6 +44,7 @@ function FAQList({ onSelect }) {
       <div className="flex items-center justify-center mb-6">
         <div className="flex items-center gap-3">
           <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent flex-1 w-12"></div>
+          {/* "자주 묻는 질문" 텍스트와 아이콘 */}
           <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-gray-200">
             <svg className="w-4 h-4 text-pink-500" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
@@ -50,11 +52,31 @@ function FAQList({ onSelect }) {
             <span className="text-sm font-medium text-gray-700">자주 묻는 질문</span>
           </div>
           <div className="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent flex-1 w-12"></div>
+
+          {/* "열기/접기" 버튼을 아이콘 옆에 위치 */}
+          <div
+            onClick={() => setIsOpen(prev => !prev)}
+            className="flex items-center gap-1 cursor-pointer hover:text-gray-600 transition-colors duration-200"
+          >
+            <span className="text-xs text-gray-400">
+              {isOpen ? '접기' : '열기'}
+            </span>
+            <svg 
+              className={`w-3 h-3 text-gray transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+
         </div>
       </div>
-  
+          
       {/* FAQ 버튼들 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {isOpen && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {faqs.map((faq, index) => (
           <button
             key={index}
@@ -93,15 +115,18 @@ function FAQList({ onSelect }) {
             <div className="absolute inset-0 bg-gradient-to-r from-pink-500/5 to-purple-500/5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none" />
           </button>
         ))}
-      </div>
+        </div>
+      )}
       
       {/* 추가 질문 유도 텍스트 */}
-      <div className="text-center mt-6">
-        <p className="text-sm text-gray-500">
-          다른 궁금한 점이 있으시면 아래 채팅창에 직접 질문해보세요! 
-          <span className="inline-block ml-1">💬</span>
-        </p>
-      </div>
+      {isOpen && (
+        <div className="text-center mt-6">
+          <p className="text-sm text-gray-500">
+            다른 궁금한 점이 있으시면 아래 채팅창에 직접 질문해보세요! 
+            <span className="inline-block ml-1">💬</span>
+          </p>
+        </div>
+      )}
     </div>
   );
 }
