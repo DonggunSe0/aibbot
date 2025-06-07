@@ -27,20 +27,20 @@ function MenuSelector({ onSelect }) {
         <button
           key={index}
           onClick={() => onSelect(menu.label)}
-          className="group relative bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-200 p-6 text-center overflow-hidden"
+          className="group relative bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 border border-gray-200 p-1 text-center overflow-hidden"
         >
           {/* 배경 그라데이션 효과 */}
           <div className={`absolute inset-0 bg-gradient-to-br ${menu.color} opacity-0 group-hover:opacity-5 transition-opacity duration-300`} />
           
           {/* 이모지 */}
-          <div className="relative mb-4">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl group-hover:scale-110 transition-transform duration-300">
-              <span className="text-5xl">{menu.emoji}</span>
+          <div className="relative mb-2">
+            <div className="inline-flex items-center justify-center w-16 h-12 rounded-2xl group-hover:scale-110 transition-transform duration-300">
+              <span className="text-4xl">{menu.emoji}</span>
             </div>
           </div>
           
           {/* 제목 */}
-          <h3 className="relative font-semibold text-gray-800 mb-2 group-hover:text-gray-900 transition-colors">
+          <h3 className="relative font-semibold text-gray-800 mb-0.5 group-hover:text-gray-900 transition-colors">
             {menu.label}
           </h3>
           
