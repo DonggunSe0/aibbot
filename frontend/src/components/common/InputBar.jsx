@@ -58,7 +58,7 @@ function InputBar({ onSend, isLoading }) {
               onBlur={() => setIsFocused(false)}
               placeholder={isLoading ? "아이뽓이 답변하는 중..." : "궁금한 육아 정책을 물어보세요... (Shift+Enter로 줄바꿈)"}
               disabled={isLoading}
-              className="w-full p-4 pr-14 bg-transparent border-none outline-none resize-none text-gray-800 placeholder-gray-500 min-h-[56px] max-h-[120px]"
+              className="w-full p-3 pr-10 bg-transparent border-none outline-none resize-none text-gray-800 placeholder-gray-500 min-h-[40px] max-h-[120px]"
               rows="1"
             />
             
@@ -66,7 +66,7 @@ function InputBar({ onSend, isLoading }) {
             <button
               type="submit"
               disabled={!input.trim() || isLoading}
-              className={`absolute right-3 bottom-3 w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-200 ${
+              className={`absolute right-3 bottom-2 w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 ${
                 input.trim() && !isLoading
                   ? 'bg-gradient-to-r from-pink-500 to-purple-600 text-white shadow-lg hover:shadow-xl hover:scale-105 active:scale-95'
                   : 'bg-gray-100 text-gray-400 cursor-not-allowed'
