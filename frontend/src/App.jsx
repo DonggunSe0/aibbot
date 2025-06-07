@@ -435,14 +435,14 @@ function App() {
       <main className="flex-grow overflow-y-auto pt-20 pb-24">
         <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* 웰컴 섹션 + 프로필 요약 */}
-          <div className="mb-8 text-center">
+          <div className="mb-4 text-center">
             <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-pink-400 to-purple-500 rounded-2xl shadow-lg mb-6 animate-bounce-gentle">
               <span className="text-4xl">🤖</span>
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-gray-800 mb-3">
+            <h1 className="text-xl sm:text-3xl font-bold text-gray-800 mb-3">
               안녕하세요! <span className="text-pink-600">아이뽓</span>입니다
             </h1>
-            <p className="text-gray-600 leading-relaxed max-w-md mx-auto mb-3">
+            <p className="text-gray-600 leading-relaxed max-w-md mx-auto mb-2">
               서울시 임신·출산·육아 정책을 쉽고 빠르게 찾아드려요.<br />
               아래 메뉴를 선택하거나 궁금한 내용을 질문해보세요.
             </p>
