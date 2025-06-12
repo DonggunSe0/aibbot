@@ -34,14 +34,14 @@ function ChatBox({ messages, isLoading, onPolicyClick }) {
   };
 
   const formatMessage = (text = '') => {
-    // 참고 정책 텍스트 패턴 (📋 **참고 정책:** 부터 다음 빈 줄 또는 문장 끝까지)
-    const policyReferenceRegex = /📋\s*\*\*참고\s*정책:\*\*\s*([\s\S]*?)(?=\n\n|\n$|$)/;
+      // 참고 정책 텍스트 패턴 (📋 참고 정책: 부터 다음 빈 줄 또는 문장 끝까지)
+      const policyReferenceRegex = /📋\s*참고\s*정책:\s*([\s\S]*?)(?=\n\n|\n$|$)/;
 
-    // 텍스트에서 참고 정책 부분 삭제
-    const newText = text.replace(policyReferenceRegex, '');
+      // 텍스트에서 참고 정책 부분 삭제
+      const newText = text.replace(policyReferenceRegex, '');
 
-    // 나머지 텍스트를 줄바꿈 유지하여 렌더링
-    return <div className="whitespace-pre-line">{newText.trim()}</div>;
+      // 나머지 텍스트를 줄바꿈 유지하여 렌더링
+      return <div className="whitespace-pre-line">{newText.trim()}</div>;
   };
 
   const getMessageTypeStyle = (msg) => {
