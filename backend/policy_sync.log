@@ -474,3 +474,35 @@ DB 저장 완료:
 2025-06-13 00:38:00,845 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
 2025-06-13 00:38:11,086 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
 2025-06-13 00:38:11,094 - INFO - 127.0.0.1 - - [13/Jun/2025 00:38:11] "POST /api/chat HTTP/1.1" 200 -
+2025-06-13 00:41:30,167 - INFO - 자동 스케줄링 설정 완료:
+2025-06-13 00:41:30,167 - INFO - 자동 동기화 백그라운드 스레드 시작됨
+2025-06-13 00:41:30,167 - INFO - - 매일 오전 6시 정책 동기화
+2025-06-13 00:41:30,168 - INFO - - 매주 월요일 오전 9시 정책 동기화
+2025-06-13 00:41:30,197 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5001
+2025-06-13 00:41:30,198 - INFO - [33mPress CTRL+C to quit[0m
+2025-06-13 00:41:30,200 - INFO -  * Restarting with stat
+2025-06-13 00:41:32,482 - INFO - 자동 스케줄링 설정 완료:
+2025-06-13 00:41:32,482 - INFO - 자동 동기화 백그라운드 스레드 시작됨
+2025-06-13 00:41:32,482 - INFO - - 매일 오전 6시 정책 동기화
+2025-06-13 00:41:32,483 - INFO - - 매주 월요일 오전 9시 정책 동기화
+2025-06-13 00:41:32,499 - WARNING -  * Debugger is active!
+2025-06-13 00:41:32,510 - INFO -  * Debugger PIN: 835-626-981
+2025-06-13 00:47:40,721 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-06-13 00:47:50,275 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-06-13 00:47:50,302 - INFO - 127.0.0.1 - - [13/Jun/2025 00:47:50] "POST /api/chat HTTP/1.1" 200 -
+2025-06-13 00:47:57,772 - INFO - 127.0.0.1 - - [13/Jun/2025 00:47:57] "GET /api/policy/1 HTTP/1.1" 200 -
+2025-06-13 00:48:39,774 - INFO -  * Detected change in 'E:\\aibbot_test\\aibbot\\backend\\rag_service.py', reloading
+2025-06-13 00:48:39,977 - INFO -  * Restarting with stat
+2025-06-13 00:48:42,257 - INFO - 자동 스케줄링 설정 완료:
+2025-06-13 00:48:42,258 - INFO - 자동 동기화 백그라운드 스레드 시작됨
+2025-06-13 00:48:42,258 - INFO - - 매일 오전 6시 정책 동기화
+2025-06-13 00:48:42,258 - INFO - - 매주 월요일 오전 9시 정책 동기화
+2025-06-13 00:48:42,281 - WARNING -  * Debugger is active!
+2025-06-13 00:48:42,298 - INFO -  * Debugger PIN: 835-626-981
+2025-06-13 00:48:50,838 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-06-13 00:48:55,964 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2025-06-13 00:48:55,967 - INFO - 127.0.0.1 - - [13/Jun/2025 00:48:55] "POST /api/chat HTTP/1.1" 200 -
+2025-06-13 00:50:00,816 - INFO - 127.0.0.1 - - [13/Jun/2025 00:50:00] "GET /api/policy/27 HTTP/1.1" 200 -
+2025-06-13 00:50:08,206 - INFO - 127.0.0.1 - - [13/Jun/2025 00:50:08] "GET /api/policy/63 HTTP/1.1" 200 -
+2025-06-13 00:50:11,973 - INFO - 127.0.0.1 - - [13/Jun/2025 00:50:11] "GET /api/policy/20 HTTP/1.1" 200 -

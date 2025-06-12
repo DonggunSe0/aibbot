@@ -347,6 +347,35 @@ class AnswerGenerationAgent:
     def __init__(self, openai_client):
         self.client = openai_client
 
+    def _remove_markdown(self, text: str) -> str:
+        """마크다운 문법을 강제로 제거하는 후처리 함수"""
+        # ** 굵은 글씨 제거
+        text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
+
+        # * 기울임 제거
+        text = re.sub(r"\*(.*?)\*", r"\1", text)
+
+        # ## 헤딩 제거
+        text = re.sub(r"^#{1,6}\s*(.*)$", r"\1", text, flags=re.MULTILINE)
+
+        # ``` 코드 블록 제거
+        text = re.sub(r"```[^`]*```", "", text, flags=re.DOTALL)
+        text = re.sub(r"`([^`]+)`", r"\1", text)
+
+        # [링크](url) 형태를 텍스트만 남기기
+        text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+
+        # > 인용 제거
+        text = re.sub(r"^>\s*(.*)$", r"\1", text, flags=re.MULTILINE)
+
+        # --- 구분선 제거
+        text = re.sub(r"^-{3,}$", "", text, flags=re.MULTILINE)
+
+        # 연속된 빈 줄 정리
+        text = re.sub(r"\n\s*\n\s*\n", "\n\n", text)
+
+        return text.strip()
+
     def generate_personalized_answer(
         self, user_query: str, qua_result: Dict, policy_results: List[Dict]
     ) -> Dict[str, Any]:
@@ -379,7 +408,7 @@ class AnswerGenerationAgent:
 
         context_text = "\n".join(context_parts)
 
-        # AGA 프롬프트 구성 (마크다운 금지 지시 추가)
+        # AGA 프롬프트 구성
         aga_prompt = f"""
 당신은 서울시 육아 정책을 안내하는 전문 AI 상담가 '아이뽓'입니다.
 
@@ -403,7 +432,7 @@ class AnswerGenerationAgent:
 
 5. 불확실한 정보는 추측하지 말고 확인이 필요하다고 안내
 6. 친근하고 전문적인 톤 유지
-7. 마크다운 문법 절대 사용 금지! ** 나 ## 같은 마크다운 기호를 절대 사용하지 마세요. 일반 텍스트로만 답변하세요.
+7. 일반 텍스트로만 답변하세요. 마크다운 목적의 기호 사용을 엄금합니다. ** 같은 별표나 해시 기호 등 특수문자는 사용하지 마세요.
 
 답변:
 """
@@ -414,7 +443,7 @@ class AnswerGenerationAgent:
                 messages=[
                     {
                         "role": "system",
-                        "content": "당신은 서울시 육아 정책 전문 상담사 '아이뽓'입니다. 정확하고 친절한 맞춤 답변을 제공합니다. 마크다운 문법을 절대 사용하지 말고 일반 텍스트로만 답변하세요.",
+                        "content": "당신은 서울시 육아 정책 전문 상담사 '아이뽓'입니다. 정확하고 친절한 맞춤 답변을 제공합니다. 일반 텍스트로만 답변하고 마크다운 문법은 절대 사용하지 마세요.",
                     },
                     {"role": "user", "content": aga_prompt},
                 ],
@@ -422,10 +451,14 @@ class AnswerGenerationAgent:
                 max_tokens=1200,
             )
 
-            answer = response.choices[0].message.content.strip()
+            # 원본 답변
+            raw_answer = response.choices[0].message.content.strip()
+
+            # 🔥 마크다운 강제 제거 후처리
+            clean_answer = self._remove_markdown(raw_answer)
 
             return {
-                "answer": answer,
+                "answer": clean_answer,
                 "cited_policies": context_policies,
                 "personalized": True,
                 "confidence_score": self._calculate_confidence(policy_results),
